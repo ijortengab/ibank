@@ -1,0 +1,21 @@
+{
+    "name": "ijortengab/ibank",
+    "description": "Internet Banking Helper for grab information of your internet banking account.",
+    "type": "project",
+    "license": "GPL",
+    "authors": [
+        {
+            "name": "IjorTengab",
+            "email": "m_roji28@yahoo.com",
+            "homepage": "http://github.com/ijortengab"
+        }
+    ],
+    "require": {
+        "ijortengab/browser": ">=0.0.7",
+        "ijortengab/parse-html": ">=0.0.5",
+        "ijortengab/parse-info": ">=0.0.3"
+    },
+    "autoload": {
+        "psr-4": {"IjorTengab\\": "src/"}
+    }
+}
