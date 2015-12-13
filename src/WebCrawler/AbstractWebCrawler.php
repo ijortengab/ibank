@@ -1,8 +1,8 @@
 <?php
 namespace IjorTengab\WebCrawler;
 
-use IjorTengab\InfoConfiguration;
-use IjorTengab\parseHTML;
+use IjorTengab\ParseInfo;
+use IjorTengab\ParseHtml;
 use IjorTengab\Browser\Browser;
 use IjorTengab\Traits\FileSystemTrait;
 use IjorTengab\Traits\ObjectManagerTrait;
@@ -18,15 +18,15 @@ use IjorTengab\Traits\ObjectManagerTrait;
  *   https://github.com/ijortengab/tools
  *
  * @version
- *   0.0.1
+ *   0.0.2
  *
  * Abstract yang menyediakan pola kerja untuk crawling pada halaman web.
  * Disesuaikan dengan "behaviour" manusia saat browsing menggunakan browser.
  *
  * Abstract ini membutuhkan
  *   - class Browser (ijortengab/browser),
- *   - class parseHTML (ijortengab/parse-html),
- *   - class InfoConfiguration (ijortengab/info-configuration),
+ *   - class ParseHtml (ijortengab/parse-html),
+ *   - class ParseInfo (ijortengab/parse-info),
  *   - trait FileSystemTrait (shipped with Browser), dan
  *   - trait ObjectManagerTrait (shipped with Browser).
  *
@@ -132,7 +132,7 @@ abstract class AbstractWebCrawler
 
     /**
      * Nama file untuk menyimpan konfigurasi custom. Isi file ini merupakan
-     * string hasil encode menggunakan fungsi InfoConfiguration::encode().
+     * string hasil encode menggunakan fungsi ParseInfo::encode().
      */
     public $configuration_custom_filename = 'configuration.info';
 
@@ -264,7 +264,7 @@ abstract class AbstractWebCrawler
         $custom = array();
         $this->configuration_custom_file_is_exists = $file_exists = file_exists($filename);
         if ($file_exists) {
-            $custom = InfoConfiguration::decode(file_get_contents($filename));
+            $custom = ParseInfo::decode(file_get_contents($filename));
             $this->configuration_custom = $custom;
         }
         $default = $this->defaultConfiguration();
@@ -288,7 +288,7 @@ abstract class AbstractWebCrawler
             @unlink($filename);
         }
         if($this->configuration_custom_file_has_changed) {
-            $contents = InfoConfiguration::encode($this->configuration_custom);
+            $contents = ParseInfo::encode($this->configuration_custom);
             file_put_contents($filename, $contents);
         }
     }
