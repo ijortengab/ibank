@@ -1,0 +1,6 @@
+composer
+composer.lock
+test
+vendor/
+BNI/
+TODO.md

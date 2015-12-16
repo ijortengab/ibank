@@ -308,10 +308,12 @@ abstract class AbstractWebCrawler
             $this->configuration('user_agent', $user_agent);
         }
         // Default Options.
-        $this->browser->options('cookie_receive', true)
-                      ->options('cookie_send', true)
-                      ->options('follow_location', true)
-                      ->options('user_agent', $user_agent);
+        $this->browser
+            ->options('cookie_receive', true)
+            ->options('cookie_send', true)
+            ->options('follow_location', true)
+            ->options('user_agent', $user_agent)
+        ;
         // Other Settings.
         if (isset($browser_settings['cookie']) && !empty($browser_settings['cookie'])) {
             $this->browser->cookie_filename = $browser_settings['cookie'];
@@ -324,8 +326,10 @@ abstract class AbstractWebCrawler
         }
         // If debug true.
         if ($this->debug) {
-            $this->browser->options('history_save', true)
-                          ->options('cache_save', true);
+            $this->browser
+                ->options('history_save', true)
+                ->options('cache_save', true)
+            ;
         }
     }
 

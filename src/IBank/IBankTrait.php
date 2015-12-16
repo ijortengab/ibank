@@ -8,7 +8,14 @@ namespace IjorTengab\IBank;
  */
 trait IBankTrait
 {
+    
+    protected static $_error = [];
 
+    public static function getError() 
+    {
+        return self::$_error;
+    }
+    
     /**
      * Create a new instance of object.
      *
@@ -42,6 +49,17 @@ trait IBankTrait
     {
         $instance = self::init($information);
         $instance->target = 'get_balance';
-        return $instance->execute()->result;
+        $instance->execute();
+        self::$_error = array_merge(self::$_error, $instance->error);
+        return $instance->result;
+    }
+
+    public static function getTransaction($information)
+    {
+        $instance = self::init($information);
+        $instance->target = 'get_transaction';
+        $instance->execute();
+        self::$_error = array_merge(self::$_error, $instance->error);
+        return $instance->result;
     }
 }

@@ -66,8 +66,12 @@ class IBankBNI extends AbstractWebCrawler
                         'verify' => 'successful',
                     ],
                 ],
-                'get_transaction_history' => [
-
+                'get_transaction' => [
+                    [
+                        'type' => 'request',
+                        'menu' => 'home_page',
+                        'verify' => 'authenticated',
+                    ],
                 ],
             ],
         ];
@@ -126,16 +130,6 @@ class IBankBNI extends AbstractWebCrawler
     }
 
     /**
-     * Memastikan bahwa halaman saat ini adalah page '404'.
-     */
-    protected function _is404Page()
-    {
-        $text = $this->html->find('span#Step1')->text();
-        $position = strpos($text, '404');
-        return is_int($position);
-    }
-
-    /**
      * Verifikasi hasil request menu "home_page" dengan context "authenticated".
      */
     protected function verifyRequestHomePageAuthenticated()
@@ -143,16 +137,13 @@ class IBankBNI extends AbstractWebCrawler
         // Hapus agar tidak tersimpan dalam file configuration.
         $this->configuration('menu][home_page][url', null);
 
-        $indication_authenticated = $this->html->find('span#CurrentProfileDisp');
-        $indication_not_authenticated_yet = $this->html->find('table#Language_table');
-
-        if ($indication_authenticated->length > 0) {
+        if ($this->indicationOf('home_page_authenticated')) {
             $this->parseHomePageAuthenticated();
         }
-        elseif ($indication_not_authenticated_yet->length > 0) {
+        elseif ($this->indicationOf('home_page_not_authenticated')) {
             $this->parseHomePageAnonymous();
         }
-        elseif ($this->_is404Page()) {
+        elseif ($this->indicationOf('404_page')) {
             $this->parse404Page();
         }
         else {
@@ -167,9 +158,7 @@ class IBankBNI extends AbstractWebCrawler
     {
         // Hapus agar tidak tersimpan dalam file configuration.
         $this->configuration('menu][login_page][url', null);
-
-        $indication_form_exists = $this->html->find('form');
-        if ($indication_form_exists->length > 0) {
+        if ($this->indicationOf('form_exists')) {
             $this->parseLoginPage();
         }
         else {
@@ -184,14 +173,14 @@ class IBankBNI extends AbstractWebCrawler
     {
         // Hapus agar tidak tersimpan dalam file configuration.
         $this->configuration('menu][login_form][url', null);
-
-        $indication_failed = $this->html->find('#Display_MConError');
-        $indication_authenticated = $this->html->find('span#CurrentProfileDisp');
-        if ($indication_authenticated->length > 0) {
+        
+        if ($this->indicationOf('home_page_authenticated')) {
             $this->parseHomePageAuthenticated();
         }
-        elseif ($indication_failed->length > 0) {
-            $text = $indication_failed->text();
+        elseif ($this->indicationOf('login_error')) {
+            $text = $this->html->find('#Display_MConError')->text();
+            $text = preg_replace('/\s\s+/', ' ', $text);
+            $text = trim($text);
             throw new RequestException('Login failed. Message: ' . $text);
         }
         else {
@@ -225,14 +214,12 @@ class IBankBNI extends AbstractWebCrawler
         // Hapus agar tidak tersimpan dalam file configuration.
         $this->configuration('menu][balance_information_page][url', null);
 
-        $indication_form_exists = $this->html->find('form');
-        if ($indication_form_exists->length > 0) {
+        if ($this->indicationOf('form_exists')) {
             $this->parseAccountTypeForm();
         }
         else {
             throw new VerifyRequestException('balance_information_page');
         }
-
     }
 
     /**
@@ -243,9 +230,8 @@ class IBankBNI extends AbstractWebCrawler
     {
         // Hapus agar tidak tersimpan dalam file configuration.
         $this->configuration('menu][account_type_form][url', null);
-
-        $indication_form_exists = $this->html->find('form');
-        if ($indication_form_exists->length > 0) {
+        
+        if ($this->indicationOf('form_exists')) {
             $this->parseAccountNumberForm();
         }
         else {
@@ -261,9 +247,8 @@ class IBankBNI extends AbstractWebCrawler
     {
         // Hapus agar tidak tersimpan dalam file configuration.
         $this->configuration('menu][account_number_form][url', null);
-
-        $indication_table_balance = $this->html->find('table[id~=BalanceDisplayTable]')->eq(1);
-        if ($indication_table_balance->length > 0) {
+        
+        if ($this->indicationOf('table_balance')) {
             $this->parseBalanceInformationPage();
         }
         else {
@@ -279,12 +264,42 @@ class IBankBNI extends AbstractWebCrawler
     {
         // Hapus agar tidak tersimpan dalam file configuration.
         $this->configuration('menu][login_page][url', null);
-        $indication_not_authenticated_yet = $this->html->find('table#Language_table');
-        if ($indication_not_authenticated_yet->length > 0) {
+        
+        if ($this->indicationOf('home_page_not_authenticated')) {
             $this->parseHomePageAnonymous();
         }
         else {
             throw new VerifyRequestException('login_page');
+        }
+    }
+
+    /**
+     * Memastikan bahwa halaman mengandung indikasi yang dibutuhkan untuk
+     * nantinya bisa diparsing sesuai dengan target.
+     */
+    protected function indicationOf($menu_name)
+    {
+        switch ($menu_name) {
+            case '404_page':
+                $text = $this->html->find('span#Step1')->text();
+                $position = strpos($text, '404');
+                return is_int($position);
+
+            case 'home_page_authenticated':
+                return ($this->html->find('span#CurrentProfileDisp')->length > 0);
+
+            case 'home_page_not_authenticated':
+                return ($this->html->find('table#Language_table')->length > 0);
+
+            case 'form_exists':
+                return ($this->html->find('form')->length > 0);
+
+            case 'login_error':
+                return ($this->html->find('#Display_MConError')->length > 0);
+
+            case 'table_balance':                
+                return ($this->html->find('table[id~=BalanceDisplayTable]')->eq(1)->length > 0);
+
         }
     }
 
