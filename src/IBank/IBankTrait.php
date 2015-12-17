@@ -8,14 +8,14 @@ namespace IjorTengab\IBank;
  */
 trait IBankTrait
 {
-    
+
     protected static $_error = [];
 
-    public static function getError() 
+    public static function getError()
     {
         return self::$_error;
     }
-    
+
     /**
      * Create a new instance of object.
      *

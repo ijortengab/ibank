@@ -2,8 +2,7 @@
 namespace IjorTengab\IBank;
 
 use IjorTengab\WebCrawler\AbstractWebCrawler;
-use IjorTengab\WebCrawler\RequestException;
-use IjorTengab\WebCrawler\VerifyRequestException;
+use IjorTengab\WebCrawler\VisitException;
 
 /**
  * Mengimplementasikan Abstract WebCrawler untuk menelusuri internet banking
@@ -18,6 +17,13 @@ class IBankBNI extends AbstractWebCrawler
 {
 
     use IBankTrait;
+
+    /**
+     * Internal property.
+     */
+    public $username;
+    public $password;
+    public $account;
 
     /**
      * @inherit.
@@ -36,53 +42,85 @@ class IBankBNI extends AbstractWebCrawler
             'menu' => [
                 'home_page' => [
                     'url' => 'https://ibank.bni.co.id',
+                    'visit_after' => [
+                        'home_page_authenticated' => 'parse_home_page_authenticated',
+                        'home_page_anonymous' => 'parse_home_page_anonymous',
+                        '404_page' => 'parse_404_page',
+                    ],
+                ],
+                'login_page' => [
+                    'visit_after' => [
+                        'form_exists' => 'parse_login_page',
+                        'home_page_anonymous' => 'parse_home_page_anonymous',
+                    ],
+                ],
+                'login_form' => [
+                    'visit_after' => [
+                        'home_page_authenticated' => 'parse_home_page_authenticated',
+                        'login_error' => 'parse_login_form_error',
+                    ],
+                ],
+                'account_page' => [
+                    'visit_after' => [
+                        'table_account' => 'parse_account_page',
+                    ],
+                ],
+                'balance_information_page' => [
+                    'visit_after' => [
+                        'form_exists' => 'parse_account_type_form',
+                    ],
+                ],
+                'account_type_form' => [
+                    'visit_after' => [
+                        'form_exists' => 'parse_account_number_form',
+                    ],
+                ],
+                'account_number_form' => [
+                    'visit_after' => [
+                        'table_balance' => 'parse_balance_information_page',
+                    ],
                 ],
             ],
             'target' => [
                 'get_balance' => [
                     [
-                        'type' => 'request',
+                        'type' => 'visit',
                         'menu' => 'home_page',
-                        'verify' => 'authenticated',
                     ],
                     [
-                        'type' => 'request',
+                        'type' => 'visit',
                         'menu' => 'account_page',
-                        'verify' => 'successful',
                     ],
                     [
-                        'type' => 'request',
+                        'type' => 'visit',
                         'menu' => 'balance_information_page',
-                        'verify' => 'form_exists',
                     ],
                     [
-                        'type' => 'request',
+                        'type' => 'visit',
                         'menu' => 'account_type_form',
-                        'verify' => 'form_exists',
                     ],
                     [
-                        'type' => 'request',
+                        'type' => 'visit',
                         'menu' => 'account_number_form',
-                        'verify' => 'successful',
                     ],
                 ],
                 'get_transaction' => [
                     [
-                        'type' => 'request',
+                        'type' => 'visit',
                         'menu' => 'home_page',
-                        'verify' => 'authenticated',
+                    ],
+                    [
+                        'type' => 'visit',
+                        'menu' => 'account_page',
+                    ],
+                    [
+                        'type' => 'visit',
+                        'menu' => 'transaction_history_page',
                     ],
                 ],
             ],
         ];
     }
-
-    /**
-     * Internal property.
-     */
-    public $username;
-    public $password;
-    public $account;
 
     /**
      * Override method.
@@ -129,157 +167,21 @@ class IBankBNI extends AbstractWebCrawler
         $this->browser->curl(false);
     }
 
-    /**
-     * Verifikasi hasil request menu "home_page" dengan context "authenticated".
-     */
-    protected function verifyRequestHomePageAuthenticated()
-    {
-        // Hapus agar tidak tersimpan dalam file configuration.
-        $this->configuration('menu][home_page][url', null);
-
-        if ($this->indicationOf('home_page_authenticated')) {
-            $this->parseHomePageAuthenticated();
-        }
-        elseif ($this->indicationOf('home_page_not_authenticated')) {
-            $this->parseHomePageAnonymous();
-        }
-        elseif ($this->indicationOf('404_page')) {
-            $this->parse404Page();
-        }
-        else {
-            throw new VerifyRequestException('home_page');
-        }
+    protected function visitAfter()
+    {       
+        // Hapus url, agar tidak tersimpan di configuration.
+        // Karnea url bersifat dinamais.
+        $menu_name = $this->step['menu'];
+        $this->configuration('menu][' . $menu_name . '][url', null);
     }
-
-    /**
-     * Verifikasi hasil request menu "login_page" dengan context "form_exists".
-     */
-    protected function verifyRequestLoginPageFormExists()
-    {
-        // Hapus agar tidak tersimpan dalam file configuration.
-        $this->configuration('menu][login_page][url', null);
-        if ($this->indicationOf('form_exists')) {
-            $this->parseLoginPage();
-        }
-        else {
-            throw new VerifyRequestException('login_page');
-        }
-    }
-
-    /**
-     * Verifikasi hasil request menu "login_page" dengan context "successful".
-     */
-    protected function verifyRequestLoginFormSuccessful()
-    {
-        // Hapus agar tidak tersimpan dalam file configuration.
-        $this->configuration('menu][login_form][url', null);
-        
-        if ($this->indicationOf('home_page_authenticated')) {
-            $this->parseHomePageAuthenticated();
-        }
-        elseif ($this->indicationOf('login_error')) {
-            $text = $this->html->find('#Display_MConError')->text();
-            $text = preg_replace('/\s\s+/', ' ', $text);
-            $text = trim($text);
-            throw new RequestException('Login failed. Message: ' . $text);
-        }
-        else {
-            throw new VerifyRequestException('login_form');
-        }
-    }
-
-    /**
-     * Verifikasi hasil request menu "account_page" dengan context "successful".
-     */
-    protected function verifyRequestAccountPageSuccessful()
-    {
-        // Hapus agar tidak tersimpan dalam file configuration.
-        $this->configuration('menu][account_page][url', null);
-
-        $indication_successful = $this->html->find('table#AccountMenuList_table');
-        if ($indication_successful->length > 0) {
-            $this->parseAccountPage();
-        }
-        else {
-            throw new VerifyRequestException('account_page');
-        }
-    }
-
-    /**
-     * Verifikasi hasil request menu "balance_information_page" dengan context
-     * "form_exists".
-     */
-    protected function verifyRequestBalanceInformationPageFormExists()
-    {
-        // Hapus agar tidak tersimpan dalam file configuration.
-        $this->configuration('menu][balance_information_page][url', null);
-
-        if ($this->indicationOf('form_exists')) {
-            $this->parseAccountTypeForm();
-        }
-        else {
-            throw new VerifyRequestException('balance_information_page');
-        }
-    }
-
-    /**
-     * Verifikasi hasil request menu "account_type_form" dengan context
-     * "form_exists".
-     */
-    protected function verifyRequestAccountTypeFormFormExists()
-    {
-        // Hapus agar tidak tersimpan dalam file configuration.
-        $this->configuration('menu][account_type_form][url', null);
-        
-        if ($this->indicationOf('form_exists')) {
-            $this->parseAccountNumberForm();
-        }
-        else {
-            throw new VerifyRequestException('account_type_form');
-        }
-    }
-
-    /**
-     * Verifikasi hasil request menu "account_number_form" dengan context
-     * "successful".
-     */
-    protected function verifyRequestAccountNumberFormSuccessful()
-    {
-        // Hapus agar tidak tersimpan dalam file configuration.
-        $this->configuration('menu][account_number_form][url', null);
-        
-        if ($this->indicationOf('table_balance')) {
-            $this->parseBalanceInformationPage();
-        }
-        else {
-            throw new VerifyRequestException('account_number_form');
-        }
-    }
-
-    /**
-     * Verifikasi hasil request menu "login_page" dengan context
-     * "home_page_anonymous".
-     */
-    protected function verifyRequestLoginPageHomePageAnonymous()
-    {
-        // Hapus agar tidak tersimpan dalam file configuration.
-        $this->configuration('menu][login_page][url', null);
-        
-        if ($this->indicationOf('home_page_not_authenticated')) {
-            $this->parseHomePageAnonymous();
-        }
-        else {
-            throw new VerifyRequestException('login_page');
-        }
-    }
-
+    
     /**
      * Memastikan bahwa halaman mengandung indikasi yang dibutuhkan untuk
      * nantinya bisa diparsing sesuai dengan target.
      */
-    protected function indicationOf($menu_name)
+    protected function visitAfterIndicationOf($indication)
     {
-        switch ($menu_name) {
+        switch ($indication) {
             case '404_page':
                 $text = $this->html->find('span#Step1')->text();
                 $position = strpos($text, '404');
@@ -288,7 +190,7 @@ class IBankBNI extends AbstractWebCrawler
             case 'home_page_authenticated':
                 return ($this->html->find('span#CurrentProfileDisp')->length > 0);
 
-            case 'home_page_not_authenticated':
+            case 'home_page_anonymous':
                 return ($this->html->find('table#Language_table')->length > 0);
 
             case 'form_exists':
@@ -297,9 +199,11 @@ class IBankBNI extends AbstractWebCrawler
             case 'login_error':
                 return ($this->html->find('#Display_MConError')->length > 0);
 
-            case 'table_balance':                
+            case 'table_balance':
                 return ($this->html->find('table[id~=BalanceDisplayTable]')->eq(1)->length > 0);
 
+            case 'table_account':
+                return ($this->html->find('table#AccountMenuList_table')->length > 0);
         }
     }
 
@@ -311,9 +215,10 @@ class IBankBNI extends AbstractWebCrawler
     {
         switch ($this->target) {
             case 'get_balance':
+            case 'get_transaction':
                 $url_account_page = $this->html->find('td a')->eq(0)->attr('href');
                 if (empty($url_account_page)) {
-                    throw new RequestException('Url for menu "account_page" not found.');
+                    throw new VisitException('Url for menu "account_page" not found.');
                 }
                 $this->configuration('menu][account_page][url', $url_account_page);
                 break;
@@ -327,18 +232,19 @@ class IBankBNI extends AbstractWebCrawler
     protected function parseHomePageAnonymous()
     {
         switch ($this->target) {
-            case 'get_balance':
+            // Apapun targetnya, aktivitasnya sama.
+            default:
                 // Belum login, maka tambah langkah baru.
                 $prepand_steps = [
                     [
-                        'type' => 'request',
+                        'type' => 'visit',
                         'menu' => 'login_page',
-                        'verify' => 'form_exists',
+                        // 'verify' => 'form_exists',
                     ],
                     [
-                        'type' => 'request',
+                        'type' => 'visit',
                         'menu' => 'login_form',
-                        'verify' => 'successful',
+                        // 'verify' => 'successful',
                     ],
                 ];
                 $this->addStep('prepand', $prepand_steps);
@@ -354,7 +260,7 @@ class IBankBNI extends AbstractWebCrawler
                 // Cari url untuk ke halaman login_page.
                 $url_login_page = $this->html->find('#RetailUser')->attr('href');
                 if (empty($url_login_page)) {
-                    throw new RequestException('Url for menu login_page not found.');
+                    throw new VisitException('Url for menu login_page not found.');
                 }
                 $this->configuration('menu][login_page][url', $url_login_page);
                 break;
@@ -368,13 +274,14 @@ class IBankBNI extends AbstractWebCrawler
     protected function parseLoginPage()
     {
         switch ($this->target) {
-            case 'get_balance':
+            // Apapun targetnya, aktivitasnya sama.
+            default:
                 $url = $this->html->find('form')->attr('action');
                 if (empty($url)) {
-                    throw new RequestException('Url for form "login_form" not found.');
+                    throw new VisitException('Url for form "login_form" not found.');
                 }
                 if (empty($this->username) || empty($this->password)) {
-                    throw new RequestException('Username and Password required.');
+                    throw new VisitException('Username and Password required.');
                 }
                 $fields = $this->html->find('form')->extractForm();
                 $fields['__AUTHENTICATE__'] = 'Login';
@@ -396,9 +303,17 @@ class IBankBNI extends AbstractWebCrawler
             case 'get_balance':
                 $url_balance_information_page = $this->html->find('td a')->eq(0)->attr('href');
                 if (empty($url_balance_information_page)) {
-                    throw new RequestException('Url for menu "balance_information_page" not found.');
+                    throw new VisitException('Url for menu "balance_information_page" not found.');
                 }
                 $this->configuration('menu][balance_information_page][url', $url_balance_information_page);
+                break;
+
+            case 'get_transaction':
+                $url_transaction_history_page = $this->html->find('td a')->eq(2)->attr('href');
+                if (empty($url_transaction_history_page)) {
+                    throw new VisitException('Url for menu "transaction_history_page" not found.');
+                }
+                $this->configuration('menu][transaction_history_page][url', $url_transaction_history_page);
                 break;
         }
     }
@@ -413,7 +328,7 @@ class IBankBNI extends AbstractWebCrawler
             case 'get_balance':
                 $url = $this->html->find('form')->attr('action');
                 if (empty($url)) {
-                    throw new RequestException('Url for form "account_type_form" not found.');
+                    throw new VisitException('Url for form "account_type_form" not found.');
                 }
                 $fields = $this->html->find('form')->extractForm();
                 $submit = $this->html->find('form')->extractForm('input[type=submit]');
@@ -439,7 +354,7 @@ class IBankBNI extends AbstractWebCrawler
             case 'get_balance':
                 $url = $this->html->find('form')->attr('action');
                 if (empty($url)) {
-                    throw new RequestException('Url for form "account_number_form" not found.');
+                    throw new VisitException('Url for form "account_number_form" not found.');
                 }
                 $fields = $this->html->find('form')->extractForm();
                 $submit = $this->html->find('form')->extractForm('input[type=submit]');
@@ -492,22 +407,34 @@ class IBankBNI extends AbstractWebCrawler
     {
         switch ($this->target) {
             case 'get_balance':
+            case 'get_transaction':
                 // 404 terjadi, maka tambah langkah baru.
                 // Temukan url login.
                 $url = $this->html->find('a#Login')->attr('href');
                 if (empty($url)) {
-                    throw new RequestException('Url for menu "login_page" not found.');
+                    throw new VisitException('Url for menu "login_page" not found.');
                 }
                 $this->configuration('menu][login_page][url', $url);
                 $prepand_steps = [
                     [
-                        'type' => 'request',
+                        'type' => 'visit',
                         'menu' => 'login_page',
-                        'verify' => 'home_page_anonymous',
                     ],
                 ];
                 $this->addStep('prepand', $prepand_steps);
                 break;
         }
     }
+
+    /**
+     * Todo.
+     */
+    protected function parseLoginFormError()
+    {
+        $text = $this->html->find('#Display_MConError')->text();
+        $text = preg_replace('/\s\s+/', ' ', $text);
+        $text = trim($text);
+        throw new VisitException('Login failed. Message: ' . $text);
+    }
+
 }

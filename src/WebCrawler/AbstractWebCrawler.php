@@ -18,7 +18,7 @@ use IjorTengab\Traits\ObjectManagerTrait;
  *   https://github.com/ijortengab/tools
  *
  * @version
- *   0.0.2
+ *   0.0.3
  *
  * Abstract yang menyediakan pola kerja untuk crawling pada halaman web.
  * Disesuaikan dengan "behaviour" manusia saat browsing menggunakan browser.
@@ -168,6 +168,21 @@ abstract class AbstractWebCrawler
      */
     abstract public function defaultCwd();
 
+    public function __construct()
+    {
+        $this->chDir($this->defaultCwd());
+    }
+
+    public function __destruct()
+    {
+        // Jangan simpan informasi temporary (jika ada) sebagai
+        // custom configuration.
+        $this->configuration('temporary', null);
+        $this->configurationDump();
+        // Report error.
+        $this->reportError();
+    }
+
     /**
      * Set property information in object.
      *
@@ -215,19 +230,20 @@ abstract class AbstractWebCrawler
         return $this;
     }
 
-    public function __construct()
+    /**
+     * Menambahkan steps.
+     */
+    protected function addStep($position, $steps)
     {
-        $this->chDir($this->defaultCwd());
-    }
+        switch ($position) {
+            case 'prepand':
+                $this->steps = array_merge($steps, $this->steps);
+                break;
 
-    public function __destruct()
-    {
-        // Jangan simpan informasi temporary (jika ada) sebagai 
-        // custom configuration.
-        $this->configuration('temporary', null);
-        $this->configurationDump();
-        // Report error.
-        $this->reportError();
+            case 'append':
+                $this->steps = array_merge($this->steps, $steps);
+                break;
+        }
     }
 
     /**
@@ -300,7 +316,7 @@ abstract class AbstractWebCrawler
     {
         $browser_settings = $this->browser;
         $this->browser = new Browser;
-        $this->browser->chDir($this->getCwd());        
+        $this->browser->chDir($this->getCwd());
         // User Agent.
         $user_agent = $this->configuration('user_agent');
         if (empty($user_agent)) {
@@ -365,7 +381,7 @@ abstract class AbstractWebCrawler
                 $handler[] = $this->underScoreToCamelCase($priority);
                 $handler[] = $alternative = isset($this->step['type']) ? $this->step['type'] : null;
                 $handler[] = $this->underScoreToCamelCase($alternative);
-                $this->runHandler($handler);
+                $this->executeHandler($handler);
                 // Jika ada handler yang memaksa stop.
                 if ($this->execute_stop) {
                     break;
@@ -389,7 +405,7 @@ abstract class AbstractWebCrawler
      *   Kumpulan method sebagai handler, posisi pertama akan dijalankan,
      *   jika handler tidak exists, maka akan dijalankan handler berikutnya.
      */
-    protected function runHandler($handlers)
+    protected function executeHandler($handlers)
     {
         $handlers = (array) $handlers;
         foreach ($handlers as $method) {
@@ -400,26 +416,10 @@ abstract class AbstractWebCrawler
     }
 
     /**
-     * Menambahkan steps.
-     */
-    protected function addStep($position, $steps)
-    {
-        switch ($position) {
-            case 'prepand':
-                $this->steps = array_merge($steps, $this->steps);
-                break;
-
-            case 'append':
-                $this->steps = array_merge($this->steps, $steps);
-                break;
-        }
-    }
-
-    /**
      * Method untuk melakukan request http sesuai dengan definisi pada menu
      * dalam property $step.
      */
-    protected function request()
+    protected function visit()
     {
         try {
             // Prepare.
@@ -448,36 +448,53 @@ abstract class AbstractWebCrawler
             }
 
             // Execute.
+            $this->visitBefore();
             $this->browser->execute();
+            $this->visitAfter();
 
             // Merge browser error.
             $this->error = array_merge($this->error, $this->browser->error);
 
-            // Run verify handler.
-            $verify_name = isset($this->step['verify']) ? $this->step['verify'] : null;
-            if (!empty($verify_name)) {
+            // Run context handler.
+            $visit_after = $this->configuration('menu][' . $menu_name . '][visit_after');
+            if (!empty($visit_after)) {
                 if (empty($this->browser->result->data)) {
-                    throw new RequestException('Empty html data.');
+                    throw new VisitException('Empty html data.');
                 }
                 // Use ParseHtml.
                 $this->html = new ParseHtml($this->browser->result->data);
-                $handler = [];
-                $handler[] = $priority = $this->configuration('menu][' . $menu_name . '][verify][' . $verify_name . '][handler');
-                $handler[] = $this->underScoreToCamelCase($priority);
-                $handler[] = $alternative = 'verify_request_' . $menu_name . '_' . $verify_name;
-                $handler[] = $this->underScoreToCamelCase($alternative);
-                $this->runHandler($handler);
+                $context_founded = false;
+                foreach ($visit_after as $indication => $handler) {
+                    if ($this->visitAfterIndicationOf($indication)) {
+                        $handler = [$handler, $this->underScoreToCamelCase($handler)];
+                        $this->executeHandler($handler);
+                        $context_founded = true;
+                        break;
+                    }
+                }
+                if (!$context_founded) {
+                    $error = 'Verifikasi menu @menu gagal, layout kemungkinan mengalami perubahan.';
+                    $error = str_replace('@menu', $menu_name, $error);
+                    throw new VisitException($error);
+                }
             }
         }
-        catch (VerifyRequestException $e) {            
-            $error = 'Verifikasi menu @menu gagal, layout kemungkinan mengalami perubahan.';
-            $this->error[] = str_replace('@menu', $e->getMessage(), $error);            
+        catch (VisitException $e) {
+            $this->error[] = 'Visit canceled. ' . $e->getMessage();
             $this->execute_stop = true;
         }
-        catch (RequestException $e) {
-            $this->error[] = 'Request canceled. ' . $e->getMessage();
-            $this->execute_stop = true;
-        }
+    }
+
+    protected function visitBefore()
+    {
+    }
+
+    protected function visitAfter()
+    {
+    }
+
+    protected function visitAfterIndicationOf($indication) {
+
     }
 
     /**
