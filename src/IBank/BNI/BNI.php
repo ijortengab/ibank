@@ -1,11 +1,12 @@
 <?php
-namespace IjorTengab\IBank;
+namespace IjorTengab\IBank\BNI;
 
 use IjorTengab\WebCrawler\AbstractWebCrawler;
 use IjorTengab\WebCrawler\VisitException;
+use IjorTengab\IBank;
 
 /**
- * Mengimplementasikan Abstract WebCrawler untuk menelusuri internet banking
+ * Mengimplementasikan class Web Crawler untuk menelusuri internet banking
  * BNI (Bank Negara Indonesia) 1946.
  * Dibuat pada Januari 2015, dilanjutkan pada Desember 2015.
  *
@@ -13,10 +14,9 @@ use IjorTengab\WebCrawler\VisitException;
  *   http://www.bni.co.id/
  *   https://ibank.bni.co.id
  */
-class IBankBNI extends AbstractWebCrawler
+class BNI extends AbstractWebCrawler implements IBank\IBankInterface
 {
-
-    use IBankTrait;
+    use IBank\IBankTrait;
 
     /**
      * Internal property.
@@ -24,6 +24,11 @@ class IBankBNI extends AbstractWebCrawler
     public $username;
     public $password;
     public $account;
+    // Dapat bernilai
+    // string, untuk nantinya akan diconvert oleh fungsi strtotime();
+    // integer, diasumsikan sebagai unix timestamp.
+    // array dengan key 'start' dan 'end'
+    public $range;
 
     /**
      * @inherit.
@@ -43,43 +48,56 @@ class IBankBNI extends AbstractWebCrawler
                 'home_page' => [
                     'url' => 'https://ibank.bni.co.id',
                     'visit_after' => [
-                        'home_page_authenticated' => 'parse_home_page_authenticated',
-                        'home_page_anonymous' => 'parse_home_page_anonymous',
-                        '404_page' => 'parse_404_page',
+                        'home_page_authenticated' => 'bni_parse_home_page_authenticated',
+                        'home_page_anonymous' => 'bni_parse_home_page_anonymous',
+                        '404_page' => 'bni_parse_404_page',
                     ],
                 ],
                 'login_page' => [
                     'visit_after' => [
-                        'form_exists' => 'parse_login_page',
-                        'home_page_anonymous' => 'parse_home_page_anonymous',
+                        'home_page_anonymous' => 'bni_parse_home_page_anonymous',
+                        'form_exists' => 'bni_parse_login_page',
                     ],
                 ],
                 'login_form' => [
                     'visit_after' => [
-                        'home_page_authenticated' => 'parse_home_page_authenticated',
-                        'login_error' => 'parse_login_form_error',
+                        'home_page_authenticated' => 'bni_parse_home_page_authenticated',
+                        'login_error' => 'bni_parse_login_form_error',
                     ],
                 ],
                 'account_page' => [
                     'visit_after' => [
-                        'table_account' => 'parse_account_page',
+                        'table_account' => 'bni_parse_account_page',
                     ],
                 ],
-                'balance_information_page' => [
+                'balance_inquiry_page' => [
                     'visit_after' => [
-                        'form_exists' => 'parse_account_type_form',
+                        'form_exists' => 'bni_parse_account_type_form',
                     ],
                 ],
                 'account_type_form' => [
                     'visit_after' => [
-                        'form_exists' => 'parse_account_number_form',
+                        // 'table_search_option' => 'bni_parse_account_number_form',
+                        'form_exists' => 'bni_parse_account_number_form',
                     ],
                 ],
                 'account_number_form' => [
                     'visit_after' => [
-                        'table_balance' => 'parse_balance_information_page',
+                        'table_balance' => 'bni_parse_balance_inquiry_page',
+                        'mini_statement_page' => 'bni_parse_mini_statement_page',
                     ],
                 ],
+                'transaction_history_page' => [
+                    'visit_after' => [
+                        'form_exists' => 'bni_parse_account_type_form',
+                    ],
+                ],
+                'mini_statement_page' => [
+                    'visit_after' => [
+                        'mini_statement_select_account_number' => 'bni_parse_account_number_form',
+                    ],
+                ],
+
             ],
             'target' => [
                 'get_balance' => [
@@ -93,7 +111,7 @@ class IBankBNI extends AbstractWebCrawler
                     ],
                     [
                         'type' => 'visit',
-                        'menu' => 'balance_information_page',
+                        'menu' => 'balance_inquiry_page',
                     ],
                     [
                         'type' => 'visit',
@@ -105,6 +123,9 @@ class IBankBNI extends AbstractWebCrawler
                     ],
                 ],
                 'get_transaction' => [
+                    // [
+                        // 'handler' => 'test',
+                    // ],
                     [
                         'type' => 'visit',
                         'menu' => 'home_page',
@@ -114,9 +135,36 @@ class IBankBNI extends AbstractWebCrawler
                         'menu' => 'account_page',
                     ],
                     [
-                        'type' => 'visit',
-                        'menu' => 'transaction_history_page',
+                        'handler' => 'bni_check_range',
+                        'null' => [
+                            'append_step' => [
+                                [
+                                    'type' => 'visit',
+                                    'menu' => 'mini_statement_page',
+                                ],
+                                [
+                                    'type' => 'visit',
+                                    'menu' => 'account_number_form',
+                                ],
+                            ],
+                        ],
+                        'other' => [
+                            'append_step' => [
+                                [
+                                    'type' => 'visit',
+                                    'menu' => 'bakwan',
+                                ],
+                                [
+                                    'type' => 'visit',
+                                    'menu' => 'cucian',
+                                ],
+                            ],
+                        ],
                     ],
+                    // [
+                        // 'type' => 'visit',
+                        // 'menu' => 'account_type_form',
+                    // ],
                 ],
             ],
         ];
@@ -168,13 +216,13 @@ class IBankBNI extends AbstractWebCrawler
     }
 
     protected function visitAfter()
-    {       
+    {
         // Hapus url, agar tidak tersimpan di configuration.
-        // Karnea url bersifat dinamais.
+        // Karena url bersifat dinamis.
         $menu_name = $this->step['menu'];
         $this->configuration('menu][' . $menu_name . '][url', null);
     }
-    
+
     /**
      * Memastikan bahwa halaman mengandung indikasi yang dibutuhkan untuk
      * nantinya bisa diparsing sesuai dengan target.
@@ -204,6 +252,12 @@ class IBankBNI extends AbstractWebCrawler
 
             case 'table_account':
                 return ($this->html->find('table#AccountMenuList_table')->length > 0);
+
+            case 'mini_statement_select_account_number':
+                return ($this->html->find('select[name=MiniStmt]')->length > 0);
+
+            case 'mini_statement_page':
+                return ($this->html->find('input[name=PageName][value=OperMiniAccIDSelectRq]')->length > 0);
         }
     }
 
@@ -211,7 +265,7 @@ class IBankBNI extends AbstractWebCrawler
      * Parsing menu "home_page" context "authenticated" sesuai dengan kebutuhan
      * pada property $target.
      */
-    protected function parseHomePageAuthenticated()
+    protected function bniParseHomePageAuthenticated()
     {
         switch ($this->target) {
             case 'get_balance':
@@ -229,7 +283,7 @@ class IBankBNI extends AbstractWebCrawler
      * Parsing menu "home_page" context "anonymous" sesuai dengan kebutuhan
      * pada property $target.
      */
-    protected function parseHomePageAnonymous()
+    protected function bniParseHomePageAnonymous()
     {
         switch ($this->target) {
             // Apapun targetnya, aktivitasnya sama.
@@ -249,12 +303,13 @@ class IBankBNI extends AbstractWebCrawler
                 ];
                 $this->addStep('prepand', $prepand_steps);
 
-                // Cari tahu bahasa situs, mungkin nanti bakal berguna.
+                // Cari tahu bahasa situs, penting untuk parsing yang
+                // terkait bahasa.
                 if ($this->html->find('span.Languageleftselect')->length) {
-                    $this->configuration('language', 'ID-ID');
+                    $this->configuration('language', 'id');
                 }
                 elseif ($this->html->find('span.Languagerightselect')->length) {
-                    $this->configuration('language', 'EN-US');
+                    $this->configuration('language', 'en');
                 }
 
                 // Cari url untuk ke halaman login_page.
@@ -271,7 +326,7 @@ class IBankBNI extends AbstractWebCrawler
      * Parsing menu "login_page" sesuai dengan kebutuhan
      * pada property $target.
      */
-    protected function parseLoginPage()
+    protected function bniParseLoginPage()
     {
         switch ($this->target) {
             // Apapun targetnya, aktivitasnya sama.
@@ -297,23 +352,28 @@ class IBankBNI extends AbstractWebCrawler
      * Parsing menu "account_page" sesuai dengan kebutuhan
      * pada property $target.
      */
-    protected function parseAccountPage()
+    protected function bniParseAccountPage()
     {
         switch ($this->target) {
             case 'get_balance':
-                $url_balance_information_page = $this->html->find('td a')->eq(0)->attr('href');
-                if (empty($url_balance_information_page)) {
-                    throw new VisitException('Url for menu "balance_information_page" not found.');
+                $url_balance_inquiry_page = $this->html->find('td a')->eq(0)->attr('href');
+                if (empty($url_balance_inquiry_page)) {
+                    throw new VisitException('Url for menu "balance_inquiry_page" not found.');
                 }
-                $this->configuration('menu][balance_information_page][url', $url_balance_information_page);
+                $this->configuration('menu][balance_inquiry_page][url', $url_balance_inquiry_page);
                 break;
 
             case 'get_transaction':
+                $url_mini_statement_page = $this->html->find('td a')->eq(1)->attr('href');
                 $url_transaction_history_page = $this->html->find('td a')->eq(2)->attr('href');
-                if (empty($url_transaction_history_page)) {
-                    throw new VisitException('Url for menu "transaction_history_page" not found.');
-                }
-                $this->configuration('menu][transaction_history_page][url', $url_transaction_history_page);
+                // Simpan pada temporary.
+                $this->configuration('temporary][url_mini_statement_page', $url_mini_statement_page);
+                $this->configuration('temporary][url_transaction_history_page', $url_transaction_history_page);
+
+                // if (empty($url_transaction_history_page)) {
+                    // throw new VisitException('Url for menu "transaction_history_page" not found.');
+                // }
+
                 break;
         }
     }
@@ -322,20 +382,17 @@ class IBankBNI extends AbstractWebCrawler
      * Parsing menu "account_type_form" sesuai dengan kebutuhan
      * pada property $target.
      */
-    protected function parseAccountTypeForm()
+    protected function bniParseAccountTypeForm()
     {
         switch ($this->target) {
             case 'get_balance':
-                $url = $this->html->find('form')->attr('action');
+            case 'get_transaction':
+                $form = $this->html->find('form');
+                $url = $form->attr('action');
                 if (empty($url)) {
                     throw new VisitException('Url for form "account_type_form" not found.');
                 }
-                $fields = $this->html->find('form')->extractForm();
-                $submit = $this->html->find('form')->extractForm('input[type=submit]');
-                // Buang semua input submit kecuali 'AccountIDSelectRq'.
-                $keep = 'AccountIDSelectRq';
-                unset($submit[$keep]);
-                $fields = array_diff_assoc($fields, $submit);
+                $fields = $form->preparePostForm('AccountIDSelectRq');
                 // Pilih pada Tabungan dan Giro dengan value = OPR.
                 $fields['MAIN_ACCOUNT_TYPE'] = 'OPR';
                 $this->configuration('menu][account_type_form][url', $url);
@@ -348,34 +405,48 @@ class IBankBNI extends AbstractWebCrawler
      * Parsing menu "account_number_form" sesuai dengan kebutuhan
      * pada property $target.
      */
-    protected function parseAccountNumberForm()
+    protected function bniParseAccountNumberForm()
     {
         switch ($this->target) {
             case 'get_balance':
-                $url = $this->html->find('form')->attr('action');
+                $form = $this->html->find('form');
+                $url = $form->attr('action');
                 if (empty($url)) {
                     throw new VisitException('Url for form "account_number_form" not found.');
                 }
-                $fields = $this->html->find('form')->extractForm();
-                $submit = $this->html->find('form')->extractForm('input[type=submit]');
-                // Buang semua input submit kecuali 'BalInqRq'.
-                $keep = 'BalInqRq';
-                unset($submit[$keep]);
-                $fields = array_diff_assoc($fields, $submit);
-                // Todo, beri support bagi satu akun yang terdiri dari
-                // banyak nomor rekening.
+                $fields = $form->preparePostForm('BalInqRq');
+                // Todo, support multi account number.
+                // $fields['acc1'] = '';
                 $this->configuration('menu][account_number_form][url', $url);
                 $this->configuration('menu][account_number_form][fields', $fields);
+                break;
 
+            case 'get_transaction':
+                $form = $this->html->find('form');
+                $url = $form->attr('action');
+                if (empty($url)) {
+                    throw new VisitException('Url for form "account_number_form" not found.');
+                }
+                $fields = $form->preparePostForm('Go');
+                // Cari nomor rekening.
+                $value = null;
+                foreach ($fields['MiniStmt'] as $number) {
+                    if (strpos($number, $this->account) !== false) {
+                        $value = $number;
+                    }
+                }
+                $fields['MiniStmt'] = $value;
+                $this->configuration('menu][account_number_form][url', $url);
+                $this->configuration('menu][account_number_form][fields', $fields);
                 break;
         }
     }
 
     /**
-     * Parsing menu "balance_information_page" sesuai dengan kebutuhan
+     * Parsing menu "balance_inquiry_page" sesuai dengan kebutuhan
      * pada property $target.
      */
-    protected function parseBalanceInformationPage()
+    protected function bniParseBalanceInquiryPage()
     {
         switch ($this->target) {
             case 'get_balance':
@@ -388,11 +459,7 @@ class IBankBNI extends AbstractWebCrawler
                 // Keep information of home_page
                 $form = $this->html->find('form');
                 $url = $form->attr('action');
-                $fields = $form->extractForm();
-                $submit = $form->extractForm('input[type=submit]');
-                $keep = '__HOME__';
-                unset($submit[$keep]);
-                $fields = array_diff_assoc($fields, $submit);
+                $fields = $form->preparePostForm('__HOME__');
                 $this->configuration('menu][home_page][url', $url);
                 $this->configuration('menu][home_page][fields', $fields);
                 break;
@@ -403,7 +470,7 @@ class IBankBNI extends AbstractWebCrawler
      * Parsing menu "404_page" sesuai dengan kebutuhan
      * pada property $target.
      */
-    protected function parse404Page()
+    protected function bniParse404Page()
     {
         switch ($this->target) {
             case 'get_balance':
@@ -429,7 +496,7 @@ class IBankBNI extends AbstractWebCrawler
     /**
      * Todo.
      */
-    protected function parseLoginFormError()
+    protected function bniParseLoginFormError()
     {
         $text = $this->html->find('#Display_MConError')->text();
         $text = preg_replace('/\s\s+/', ' ', $text);
@@ -437,4 +504,101 @@ class IBankBNI extends AbstractWebCrawler
         throw new VisitException('Login failed. Message: ' . $text);
     }
 
+    protected function bniCheckRange()
+    {
+        $key = (null === $this->range) ? 'null' : 'other';
+        $append_step = $this->step[$key]['append_step'];
+        $this->addStep('append', $append_step);
+
+        switch ($key) {
+            case 'null':
+                $this->configuration('menu][mini_statement_page][url', $this->configuration('temporary][url_mini_statement_page'));
+                break;
+
+            case 'other':
+                $this->configuration('menu][transaction_history_page][url', $this->configuration('temporary][url_transaction_history_page'));
+                break;
+        }
+    }
+
+    protected function bniParseMiniStatementPage()
+    {
+        switch ($this->target) {
+            case 'get_transaction':
+                $language = $this->configuration('language');
+                $tables = $this->html->find('div#TitleBar > table')->extractTable(true);
+                if (empty($tables)) {
+                    throw new VisitException('Table for Statement not found.');
+                }
+                $transactions = [];
+                while ($table = array_shift($tables)) {
+                    if (isset($table[0]) && isset($table[1])) {
+                        $info = $language == 'id' ? $this->bniTranslate($table[0]) : $table[0];
+                        $value = $table[1];
+                        switch ($info) {
+                            case 'Transaction Date':
+                                $transaction = [];
+                                $transaction['date'] = $value;
+                                break;
+
+                            case 'Transaction Remarks':
+                                $transaction['detail'] = $value;
+                                break;
+
+                            case 'Amount type':
+                                $transaction['type'] = $value;
+                                break;
+
+                            case 'Amount':
+                                $transaction['amount'] = $value;
+                                break;
+
+                            case 'Account Balance':
+                                $transaction['balance'] = $value;
+                                $transactions[] = $transaction;
+                                break;
+                        }
+                    }
+                }
+                // Set to result.
+                $this->result = $transactions;
+
+                // Keep information of home_page
+                $form = $this->html->find('form');
+                $url = $form->attr('action');
+                $fields = $form->preparePostForm('__HOME__');
+                // Cari nomor rekening.
+                $value = null;
+                foreach ($fields['MiniStmt'] as $number) {
+                    if (strpos($number, $this->account) !== false) {
+                        $value = $number;
+                    }
+                }
+                $fields['MiniStmt'] = $value;
+                $this->configuration('menu][home_page][url', $url);
+                $this->configuration('menu][home_page][fields', $fields);
+                break;
+        }
+    }
+
+    /**
+     * Translate dari indonesia ke inggiris.
+     */
+    protected function bniTranslate($string) 
+    {
+        return isset($this->bniString()[$string]) ? $this->bniString()[$string] : $string;
+    }
+    
+    protected function bniString() 
+    {
+        return [
+            'Tanggal Transaksi' => 'Transaction Date',
+            'Uraian Transaksi' => 'Transaction Remarks',
+            'Tipe' => 'Amount type',
+            'Jumlah Pembayaran' => 'Amount',
+            'Saldo' => 'Account Balance',
+        ];
+    }
+    
+    
 }

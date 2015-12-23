@@ -8,6 +8,9 @@ use IjorTengab\Traits\FileSystemTrait;
 use IjorTengab\Traits\ObjectManagerTrait;
 
 /**
+ *
+ * IjorTengab's Web Crawler.
+ *
  * @file
  *   AbstractWebCrawler.php
  *
@@ -80,16 +83,16 @@ abstract class AbstractWebCrawler
     protected $execute_stop = false;
 
     /**
-     * Jeda eksekusi antar satu step dengan step lainnya. Satuan dalam detik.
+     * Jeda execute antar satu step dengan step lainnya.
+     * Satuan dalam detik. Range 0~2 detik.
      */
-    public $delay = 0.35;
+    public $step_delay = 0;
 
     /**
-     * Jeda proses pada property $delay yang dibenarkan adalah diatas 0 detik
-     * dan dibawah 2 detik. Jika nilai diluar dari itu, maka nilai dari property
-     * $_delay digunakan (alias kembali ke default).
+     * Jeda request http antar satu visit dengan visit lainnya.
+     * Satuan dalam detik. Range 0~2 detik.
      */
-    private $_delay = 0.35;
+    public $visit_delay = 0.35;
 
     /**
      * Untuk keperluan debug. Jika true, maka informasi akses log dan cache
@@ -211,7 +214,8 @@ abstract class AbstractWebCrawler
     {
         switch ($property) {
             case 'debug':
-            case 'delay':
+            case 'step_delay':
+            case 'visit_delay':
             case 'target':
                 $this->{$property} = $value;
                 break;
@@ -386,10 +390,11 @@ abstract class AbstractWebCrawler
                 if ($this->execute_stop) {
                     break;
                 }
-                // Beri jeda antara 0 sampai 2 detik, atau kembalikan ke default.
-                ($this->delay >= 0 && $this->delay <= 2) or $this->delay = (float) $this->_delay;
-                $this->delay *= 1000000;
-                usleep($this->delay);
+                // Beri jeda antara 0 sampai 2 detik.
+                if ($this->step_delay > 0 && $this->step_delay <= 2) {
+                    $this->step_delay *= 1000000;
+                    usleep($this->step_delay);
+                }
             }
         }
         catch (ExecuteException $e) {
@@ -425,11 +430,11 @@ abstract class AbstractWebCrawler
             // Prepare.
             $menu_name = isset($this->step['menu']) ? $this->step['menu'] : null;
             if (empty($menu_name)) {
-                throw new RequestException('Menu information in "Step Definition" has not been defined.');
+                throw new VisitException('Menu information in "Step Definition" has not been defined.');
             }
             $url = $this->configuration('menu][' . $menu_name . '][url');
             if (empty($url)) {
-                throw new RequestException('URL information for menu "' . $menu_name . '" has not been defined.');
+                throw new VisitException('URL information for menu "' . $menu_name . '" has not been defined.');
             }
             // Reset browser and set new URL.
             $this->browser->reset()->setUrl($url);
@@ -478,9 +483,16 @@ abstract class AbstractWebCrawler
                     throw new VisitException($error);
                 }
             }
+
+            // Everything's OK, and wait for delay.
+            // Beri jeda antara 0 sampai 2 detik.
+            if ($this->visit_delay > 0 && $this->visit_delay <= 2) {
+                $this->visit_delay *= 1000000;
+                usleep($this->visit_delay);
+            }
         }
         catch (VisitException $e) {
-            $this->error[] = 'Visit canceled. ' . $e->getMessage();
+            $this->error[] = 'Not expected. ' . $e->getMessage();
             $this->execute_stop = true;
         }
     }

@@ -1,6 +1,8 @@
 composer
 composer.lock
 test
+test.txt
 vendor/
-BNI/
+BNI/*
 TODO.md
+*.patch

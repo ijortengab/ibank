@@ -11,7 +11,15 @@ Todo
 
 ## BNI
 
-Todo
+Fitur yang tersedia untuk bank BNI adalah:
+ - dapat saldo terakhir (string).
+ - dapat mutasi rekening (array).
+ 
+Internet Banking BNI sudah dicoba dengan kriteria sebagai berikut:
+ - tipe rekening (account) yakni Tabungan/Giro
+ - satu username hanya terdapat satu rekening (account). 
+Selain kriteria diatas, maka akan gagal karena belum diketahui.
+
 
 ## BCA
 
