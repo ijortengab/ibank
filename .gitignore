@@ -1,6 +1,9 @@
 composer
 composer.lock
+composer.phar
+installer
 test
+test.php
 test.txt
 vendor/
 BNI/*

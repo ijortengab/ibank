@@ -16,7 +16,7 @@ use IjorTengab\IBank;
  */
 class BNI extends AbstractWebCrawler implements IBank\IBankInterface
 {
-    use IBank\IBankTrait;
+    use IBank\IBankWebCrawlerTrait;
 
     /**
      * Internal property.
@@ -584,12 +584,12 @@ class BNI extends AbstractWebCrawler implements IBank\IBankInterface
     /**
      * Translate dari indonesia ke inggiris.
      */
-    protected function bniTranslate($string) 
+    protected function bniTranslate($string)
     {
         return isset($this->bniString()[$string]) ? $this->bniString()[$string] : $string;
     }
-    
-    protected function bniString() 
+
+    protected function bniString()
     {
         return [
             'Tanggal Transaksi' => 'Transaction Date',
@@ -599,6 +599,6 @@ class BNI extends AbstractWebCrawler implements IBank\IBankInterface
             'Saldo' => 'Account Balance',
         ];
     }
-    
-    
+
+
 }

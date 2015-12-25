@@ -17,7 +17,7 @@ class IBank {
      * Daftar interface yang dibutuhkan oleh class ini.
      */
     protected static $interface_require = [
-        __NAMESPACE__ . '\\' . 'IBankInterface',
+        'IjorTengab\IBank\IBankInterface',
     ];
 
     /**
@@ -29,10 +29,9 @@ class IBank {
      * Mendaftarkan module external untuk bisa terintegrasi dengan framework
      * IBank ini.
      */
-    public static function register($name, $callback)
+    public static function register($name, IBankInterface $callback)
     {
         $bank = self::getBank();
-        $callback = '\\' . ltrim($callback, '\\');
         $bank[$name] = $callback;
         self::$bank = $bank;
     }
@@ -60,34 +59,50 @@ class IBank {
     /**
      * Dynamically calling static method. Menangkap semua method static
      * yang belum didefinisikan dan diasumsikan sebagai method untuk melakukan
-     * action terkait yang terdaftar pada property $bank. 
+     * action terkait yang terdaftar pada property $bank.
      */
     public static function __callStatic($name, $arguments)
     {
         try {
             // Start verify.
             $bank = self::getBank();
+
             if (!array_key_exists($name, $bank)) {
                 throw new \Exception(str_replace('@name', $name, 'Callback for "@name" not registered.'));
             }
             if (empty(count($arguments))) {
                 throw new \Exception('Action has not been defined.');
             }
-            $class = $bank[$name];
-            if (!class_exists($class)) {
-                throw new \Exception('Class has not been defined.');
+            $instance = $bank[$name];
+            if (is_string($instance)) {
+                $class = $instance;
+                // Jika text, berarti masih calon instance.
+                // Verifikasi dahulu.
+                if (!class_exists($class)) {
+                    throw new \Exception('Class has not been defined.');
+                }
+                $interface_require = self::$interface_require;
+                $diff = array_diff($interface_require, class_implements($class));
+                if (!empty($diff)) {
+                    throw new \Exception(str_replace('@diff', implode(', ', $diff), 'Class has not implements required interface: @diff.'));
+                }
+                $instance = new $class;
             }
-            $interface_require = self::$interface_require;
-            $diff = array_diff($interface_require, class_implements($class));
-            if (!empty($diff)) {
-                throw new \Exception(str_replace('@diff', implode(', ', $diff), 'Class has not implements required interface: @diff.'));
-            }
+
             // Finish verify.
             $action = array_shift($arguments);
             $information = array_shift($arguments);
-            $result = call_user_func_array(array($class, 'action'), array($action, $information));
-            self::$error = call_user_func(array($class, 'getError'));
-            return $result;
+            if (is_string($information)) {
+                $information = trim($information);
+                $information = json_decode($information, true);
+            }
+            $information = (array) $information;
+            $instance->setAction($action);
+            foreach ($information as $key => $value) {
+                $instance->setInformation($key, $value);
+            }
+            $instance->runAction();
+            return $instance->getResult();
         }
         catch (\Exception $e) {
             self::$error = $e->getMessage();
