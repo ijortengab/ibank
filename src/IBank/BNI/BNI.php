@@ -1,22 +1,26 @@
 <?php
+
 namespace IjorTengab\IBank\BNI;
 
+use IjorTengab\ActionWrapper\ModuleInterface;
 use IjorTengab\WebCrawler\AbstractWebCrawler;
+use IjorTengab\WebCrawler\WebCrawlerTrait;
 use IjorTengab\WebCrawler\VisitException;
-use IjorTengab\IBank;
+use IjorTengab\IBank\WebCrawlerModuleTrait;
 
 /**
- * Mengimplementasikan class Web Crawler untuk menelusuri internet banking
- * BNI (Bank Negara Indonesia) 1946.
- * Dibuat pada Januari 2015, dilanjutkan pada Desember 2015.
+ * Class sebagai handler BNI, menggunakan abstract Web Crawler dan
+ * mengimplementasikan interface ModuleInterface.
  *
  * @link
  *   http://www.bni.co.id/
  *   https://ibank.bni.co.id
  */
-class BNI extends AbstractWebCrawler implements IBank\IBankInterface
+class BNI extends AbstractWebCrawler implements ModuleInterface
 {
-    use IBank\IBankWebCrawlerTrait;
+    use WebCrawlerModuleTrait, WebCrawlerTrait;
+
+    const BNI_MAIN_URL = 'https://ibank.bni.co.id';
 
     /**
      * Internal property.
@@ -35,7 +39,7 @@ class BNI extends AbstractWebCrawler implements IBank\IBankInterface
      */
     public function defaultCwd()
     {
-        return getcwd() . DIRECTORY_SEPARATOR . 'BNI';
+        return getcwd() . DIRECTORY_SEPARATOR . '.ibank' . DIRECTORY_SEPARATOR . 'BNI';
     }
 
     /**
@@ -44,127 +48,147 @@ class BNI extends AbstractWebCrawler implements IBank\IBankInterface
     public function defaultConfiguration()
     {
         return [
-            'menu' => [
-                'home_page' => [
-                    'url' => 'https://ibank.bni.co.id',
-                    'visit_after' => [
-                        'home_page_authenticated' => 'bni_parse_home_page_authenticated',
-                        'home_page_anonymous' => 'bni_parse_home_page_anonymous',
-                        '404_page' => 'bni_parse_404_page',
-                    ],
-                ],
-                'login_page' => [
-                    'visit_after' => [
-                        'home_page_anonymous' => 'bni_parse_home_page_anonymous',
-                        'form_exists' => 'bni_parse_login_page',
-                    ],
-                ],
-                'login_form' => [
-                    'visit_after' => [
-                        'home_page_authenticated' => 'bni_parse_home_page_authenticated',
-                        'login_error' => 'bni_parse_login_form_error',
-                    ],
-                ],
-                'account_page' => [
-                    'visit_after' => [
-                        'table_account' => 'bni_parse_account_page',
-                    ],
-                ],
-                'balance_inquiry_page' => [
-                    'visit_after' => [
-                        'form_exists' => 'bni_parse_account_type_form',
-                    ],
-                ],
-                'account_type_form' => [
-                    'visit_after' => [
-                        // 'table_search_option' => 'bni_parse_account_number_form',
-                        'form_exists' => 'bni_parse_account_number_form',
-                    ],
-                ],
-                'account_number_form' => [
-                    'visit_after' => [
-                        'table_balance' => 'bni_parse_balance_inquiry_page',
-                        'mini_statement_page' => 'bni_parse_mini_statement_page',
-                    ],
-                ],
-                'transaction_history_page' => [
-                    'visit_after' => [
-                        'form_exists' => 'bni_parse_account_type_form',
-                    ],
-                ],
-                'mini_statement_page' => [
-                    'visit_after' => [
-                        'mini_statement_select_account_number' => 'bni_parse_account_number_form',
-                    ],
-                ],
-
-            ],
+            'menu' => $this->defaultConfigurationMenu(),
             'target' => [
-                'get_balance' => [
-                    [
-                        'type' => 'visit',
-                        'menu' => 'home_page',
+                'get_balance' => $this->defaultConfigurationTargetGetBalance(),
+                'get_transaction' => $this->defaultConfigurationTargetGetTransaction(),
+            ],
+        ];
+    }
+
+    /**
+     * Referensi menu.
+     */
+    protected function defaultConfigurationMenu()
+    {
+        return [
+            'home_page' => [
+                'url' => self::BNI_MAIN_URL,
+                'visit_after' => [
+                    'home_page_authenticated' => 'bni_parse_home_page_authenticated',
+                    'home_page_anonymous' => 'bni_parse_home_page_anonymous',
+                    '404_page' => 'bni_parse_404_page',
+                ],
+            ],
+            'login_page' => [
+                'visit_after' => [
+                    'home_page_anonymous' => 'bni_parse_home_page_anonymous',
+                    'form_exists' => 'bni_parse_login_page',
+                ],
+            ],
+            'login_form' => [
+                'visit_after' => [
+                    'home_page_authenticated' => 'bni_parse_home_page_authenticated',
+                    'login_error' => 'bni_parse_login_form_error',
+                ],
+            ],
+            'account_page' => [
+                'visit_after' => [
+                    'table_account' => 'bni_parse_account_page',
+                ],
+            ],
+            'balance_inquiry_page' => [
+                'visit_after' => [
+                    'form_exists' => 'bni_parse_account_type_form',
+                ],
+            ],
+            'account_type_form' => [
+                'visit_after' => [
+                    // 'table_search_option' => 'bni_parse_account_number_form',
+                    'form_exists' => 'bni_parse_account_number_form',
+                ],
+            ],
+            'account_number_form' => [
+                'visit_after' => [
+                    '404_page' => [
+                        'reset_execute',
+                        'bni_reset_execute',
                     ],
-                    [
-                        'type' => 'visit',
-                        'menu' => 'account_page',
-                    ],
-                    [
-                        'type' => 'visit',
-                        'menu' => 'balance_inquiry_page',
-                    ],
-                    [
-                        'type' => 'visit',
-                        'menu' => 'account_type_form',
-                    ],
-                    [
-                        'type' => 'visit',
-                        'menu' => 'account_number_form',
+                    'table_balance' => 'bni_parse_balance_inquiry_page',
+                    'mini_statement_page' => 'bni_parse_mini_statement_page',
+                ],
+            ],
+            'transaction_history_page' => [
+                'visit_after' => [
+                    'form_exists' => 'bni_parse_account_type_form',
+                ],
+            ],
+            'mini_statement_page' => [
+                'visit_after' => [
+                    'mini_statement_select_account_number' => 'bni_parse_account_number_form',
+                ],
+            ],
+        ];
+    }
+
+    /**
+     * Referensi target "get_balance".
+     */
+    protected function defaultConfigurationTargetGetBalance()
+    {
+        return [
+            [
+                'type' => 'visit',
+                'menu' => 'home_page',
+            ],
+            [
+                'type' => 'visit',
+                'menu' => 'account_page',
+            ],
+            [
+                'type' => 'visit',
+                'menu' => 'balance_inquiry_page',
+            ],
+            [
+                'type' => 'visit',
+                'menu' => 'account_type_form',
+            ],
+            [
+                'type' => 'visit',
+                'menu' => 'account_number_form',
+            ],
+        ];
+    }
+
+    /**
+     * Referensi target "get_transaction".
+     */
+    protected function defaultConfigurationTargetGetTransaction()
+    {
+        return [
+            [
+                'type' => 'visit',
+                'menu' => 'home_page',
+            ],
+            [
+                'type' => 'visit',
+                'menu' => 'account_page',
+            ],
+            [
+                'handler' => 'bni_check_range',
+                'null' => [
+                    'append_step' => [
+                        [
+                            'type' => 'visit',
+                            'menu' => 'mini_statement_page',
+                        ],
+                        [
+                            'type' => 'visit',
+                            'menu' => 'account_number_form',
+                        ],
                     ],
                 ],
-                'get_transaction' => [
-                    // [
-                        // 'handler' => 'test',
-                    // ],
-                    [
-                        'type' => 'visit',
-                        'menu' => 'home_page',
-                    ],
-                    [
-                        'type' => 'visit',
-                        'menu' => 'account_page',
-                    ],
-                    [
-                        'handler' => 'bni_check_range',
-                        'null' => [
-                            'append_step' => [
-                                [
-                                    'type' => 'visit',
-                                    'menu' => 'mini_statement_page',
-                                ],
-                                [
-                                    'type' => 'visit',
-                                    'menu' => 'account_number_form',
-                                ],
-                            ],
+                'other' => [
+                    'append_step' => [
+                        [
+                            'type' => 'visit',
+                            'menu' => 'bakwan',
                         ],
-                        'other' => [
-                            'append_step' => [
-                                [
-                                    'type' => 'visit',
-                                    'menu' => 'bakwan',
-                                ],
-                                [
-                                    'type' => 'visit',
-                                    'menu' => 'cucian',
-                                ],
-                            ],
+                        [
+                            'type' => 'visit',
+                            'menu' => 'cucian',
                         ],
                     ],
-                    // [
-                        // 'type' => 'visit',
-                        // 'menu' => 'account_type_form',
-                    // ],
                 ],
             ],
         ];
@@ -215,6 +239,9 @@ class BNI extends AbstractWebCrawler implements IBank\IBankInterface
         $this->browser->curl(false);
     }
 
+    /**
+     *
+     */
     protected function visitAfter()
     {
         // Hapus url, agar tidak tersimpan di configuration.
@@ -293,12 +320,10 @@ class BNI extends AbstractWebCrawler implements IBank\IBankInterface
                     [
                         'type' => 'visit',
                         'menu' => 'login_page',
-                        // 'verify' => 'form_exists',
                     ],
                     [
                         'type' => 'visit',
                         'menu' => 'login_form',
-                        // 'verify' => 'successful',
                     ],
                 ];
                 $this->addStep('prepand', $prepand_steps);
@@ -494,6 +519,14 @@ class BNI extends AbstractWebCrawler implements IBank\IBankInterface
     }
 
     /**
+     *
+     */
+    protected function bniResetExecute()
+    {
+        $this->configuration('menu][home_page][url', self::BNI_MAIN_URL);
+    }
+
+    /**
      * Todo.
      */
     protected function bniParseLoginFormError()
@@ -504,6 +537,9 @@ class BNI extends AbstractWebCrawler implements IBank\IBankInterface
         throw new VisitException('Login failed. Message: ' . $text);
     }
 
+    /**
+     *
+     */
     protected function bniCheckRange()
     {
         $key = (null === $this->range) ? 'null' : 'other';
@@ -521,6 +557,9 @@ class BNI extends AbstractWebCrawler implements IBank\IBankInterface
         }
     }
 
+    /**
+     *
+     */
     protected function bniParseMiniStatementPage()
     {
         switch ($this->target) {
@@ -589,6 +628,9 @@ class BNI extends AbstractWebCrawler implements IBank\IBankInterface
         return isset($this->bniString()[$string]) ? $this->bniString()[$string] : $string;
     }
 
+    /**
+     *
+     */
     protected function bniString()
     {
         return [
@@ -599,6 +641,4 @@ class BNI extends AbstractWebCrawler implements IBank\IBankInterface
             'Saldo' => 'Account Balance',
         ];
     }
-
-
 }

@@ -6,6 +6,6 @@ test
 test.php
 test.txt
 vendor/
-BNI/*
+.ibank/
 TODO.md
 *.patch

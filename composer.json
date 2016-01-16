@@ -11,10 +11,10 @@
         }
     ],
     "require": {
+        "ijortengab/tools": ">=0.0.2",
         "ijortengab/browser": ">=0.0.7",
         "ijortengab/parse-html": ">=0.0.5",
         "ijortengab/parse-info": ">=0.0.3",
-        "psr/log": "^1.0"
     },
     "autoload": {
         "psr-4": {"IjorTengab\\": "src/"}
