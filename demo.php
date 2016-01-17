@@ -6,11 +6,32 @@
  * @author
  *   IjorTengab
  *
- * File eksekusi yang menyajikan langkah cepat siap santap untuk menikmati
+ * File demonstrasi yang menyajikan langkah cepat siap santap untuk menikmati
  * fitur-fitur di project IBank.
  *
  * Perhatian: Jika Anda memindahkan file ini, sesuaikan kembali value dari
- * variable $autoload dan $demo.
+ * variable $autoload, tambahkan pada array dengan urutan pertama.
+ */
+
+use IjorTengab\IBank\IBank;
+use IjorTengab\IBank\Log;
+
+/**
+ * Composer autoloading class.
+ */
+$autoload = [
+    __DIR__ . '/vendor/autoload.php',
+    __DIR__ . '/../../autoload.php',
+];
+
+/**
+ * Prepare.
+ */
+require('_demo.php');
+
+################################################################################
+
+/**
  *
  * Table of Contents
  *
@@ -27,29 +48,7 @@
  *
  */
 
-/**
- * Composer autoloading class.
- */
-$autoload = __DIR__ . '/vendor/autoload.php';
-
-/**
- * Demo directory.
- */
-$demo = __DIR__ . '/demo';
-
-/**
- * Prepare.
- */
-set_include_path(rtrim($demo, '\\/') . PATH_SEPARATOR . get_include_path());
-require $autoload;
-require 'demo-define.php';
-
-/**
- */
-
-
 ################################################################################
-
 
 /**
  * Module BNI.
@@ -65,15 +64,14 @@ $information = [
 ];
 /**
  * Hapus karakter '//' di awal baris di bawah ini untuk melakukan eksekusi
- * fungsi dan mencetak hasil (variable $result). Kemudian save dan eksekusi
+ * fungsi dan mencetak hasil dan error log. Kemudian save dan eksekusi
  * script ini di browser atau console.
  */
-// $result = require 'demo-bni-get-balance.php';
+// $result = IBank::BNI('get_balance', $information);
 // echo _PRE, print_r($result, true), PRE_, EOL;
-
+// empty(Log::getError()) or die(print_r(Log::getError()) . EOL);
 
 ################################################################################
-
 
 /**
  * Module BNI.
@@ -89,15 +87,14 @@ $information = [
 ];
 /**
  * Hapus karakter '//' di awal baris di bawah ini untuk melakukan eksekusi
- * fungsi dan mencetak hasil (variable $result). Kemudian save dan eksekusi
+ * fungsi dan mencetak hasil dan error log. Kemudian save dan eksekusi
  * script ini di browser atau console.
  */
-// $result = require 'demo-bni-get-transaction-limited.php';
+// $result = IBank::BNI('get_transaction', $information);
 // echo _PRE, print_r($result, true), PRE_, EOL;
-
+// empty(Log::getError()) or die(print_r(Log::getError()) . EOL);
 
 ################################################################################
-
 
 /**
  * Module BNI.
@@ -117,15 +114,13 @@ $information = [
 ];
 /**
  * Hapus karakter '//' di awal baris di bawah ini untuk melakukan eksekusi
- * fungsi dan mencetak hasil (variable $result). Kemudian save dan eksekusi
+ * fungsi dan mencetak hasil dan error log. Kemudian save dan eksekusi
  * script ini di browser atau console.
  */
 // $result = require 'demo-bni-get-transaction-limited.php';
 // echo _PRE, print_r($result, true), PRE_, EOL;
 
-
 ################################################################################
-
 
 /**
  * Module BNI.
@@ -144,15 +139,13 @@ $information = [
 ];
 /**
  * Hapus karakter '//' di awal baris di bawah ini untuk melakukan eksekusi
- * fungsi dan mencetak hasil (variable $result). Kemudian save dan eksekusi
+ * fungsi dan mencetak hasil dan error log. Kemudian save dan eksekusi
  * script ini di browser atau console.
  */
 // $result = require 'demo-bni-get-transaction-unlimited.php';
 // echo _PRE, print_r($result, true), PRE_, EOL;
 
-
 ################################################################################
-
 
 /**
  * Module BCA.

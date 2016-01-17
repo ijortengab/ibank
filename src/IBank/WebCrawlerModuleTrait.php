@@ -33,9 +33,16 @@ trait WebCrawlerModuleTrait
     /**
      * Implements of ModuleInterface::setInformation().
      */
-    public function setInformation($key, $value)
+    public function setInformation($information)
     {
-        return $this->set($key, $value);
+        if (is_string($information)) {
+            $information = trim($information);
+            $information = json_decode($information, true);
+        }
+        $information = (array) $information;
+        foreach ($information as $key => $value) {
+            $this->set($key, $value);
+        }
     }
 
     /**

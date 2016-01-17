@@ -299,7 +299,8 @@ class BNI extends AbstractWebCrawler implements ModuleInterface
             case 'get_transaction':
                 $url_account_page = $this->html->find('td a')->eq(0)->attr('href');
                 if (empty($url_account_page)) {
-                    throw new VisitException('Url for menu "account_page" not found.');
+                    $this->log->error('Url for menu "account_page" not found.');
+                    throw new VisitException();
                 }
                 $this->configuration('menu][account_page][url', $url_account_page);
                 break;
@@ -340,7 +341,8 @@ class BNI extends AbstractWebCrawler implements ModuleInterface
                 // Cari url untuk ke halaman login_page.
                 $url_login_page = $this->html->find('#RetailUser')->attr('href');
                 if (empty($url_login_page)) {
-                    throw new VisitException('Url for menu login_page not found.');
+                    $this->log->error('Url for menu login_page not found.');
+                    throw new VisitException();
                 }
                 $this->configuration('menu][login_page][url', $url_login_page);
                 break;
@@ -358,10 +360,12 @@ class BNI extends AbstractWebCrawler implements ModuleInterface
             default:
                 $url = $this->html->find('form')->attr('action');
                 if (empty($url)) {
-                    throw new VisitException('Url for form "login_form" not found.');
+                    $this->log->error('Url for form "login_form" not found.');
+                    throw new VisitException();
                 }
                 if (empty($this->username) || empty($this->password)) {
-                    throw new VisitException('Username and Password required.');
+                    $this->log->error('Username and Password required.');
+                    throw new VisitException();
                 }
                 $fields = $this->html->find('form')->extractForm();
                 $fields['__AUTHENTICATE__'] = 'Login';
@@ -383,7 +387,8 @@ class BNI extends AbstractWebCrawler implements ModuleInterface
             case 'get_balance':
                 $url_balance_inquiry_page = $this->html->find('td a')->eq(0)->attr('href');
                 if (empty($url_balance_inquiry_page)) {
-                    throw new VisitException('Url for menu "balance_inquiry_page" not found.');
+                    $this->log->error('Url for menu "balance_inquiry_page" not found.');
+                    throw new VisitException();
                 }
                 $this->configuration('menu][balance_inquiry_page][url', $url_balance_inquiry_page);
                 break;
@@ -415,7 +420,8 @@ class BNI extends AbstractWebCrawler implements ModuleInterface
                 $form = $this->html->find('form');
                 $url = $form->attr('action');
                 if (empty($url)) {
-                    throw new VisitException('Url for form "account_type_form" not found.');
+                    $this->log->error('Url for form "account_type_form" not found.');
+                    throw new VisitException();
                 }
                 $fields = $form->preparePostForm('AccountIDSelectRq');
                 // Pilih pada Tabungan dan Giro dengan value = OPR.
@@ -437,7 +443,8 @@ class BNI extends AbstractWebCrawler implements ModuleInterface
                 $form = $this->html->find('form');
                 $url = $form->attr('action');
                 if (empty($url)) {
-                    throw new VisitException('Url for form "account_number_form" not found.');
+                    $this->log->error('Url for form "account_number_form" not found.');
+                    throw new VisitException();
                 }
                 $fields = $form->preparePostForm('BalInqRq');
                 // Todo, support multi account number.
@@ -450,7 +457,8 @@ class BNI extends AbstractWebCrawler implements ModuleInterface
                 $form = $this->html->find('form');
                 $url = $form->attr('action');
                 if (empty($url)) {
-                    throw new VisitException('Url for form "account_number_form" not found.');
+                    $this->log->error('Url for form "account_number_form" not found.');
+                    throw new VisitException();
                 }
                 $fields = $form->preparePostForm('Go');
                 // Cari nomor rekening.
@@ -504,7 +512,8 @@ class BNI extends AbstractWebCrawler implements ModuleInterface
                 // Temukan url login.
                 $url = $this->html->find('a#Login')->attr('href');
                 if (empty($url)) {
-                    throw new VisitException('Url for menu "login_page" not found.');
+                    $this->log->error('Url for menu "login_page" not found.');
+                    throw new VisitException();
                 }
                 $this->configuration('menu][login_page][url', $url);
                 $prepand_steps = [
@@ -534,7 +543,8 @@ class BNI extends AbstractWebCrawler implements ModuleInterface
         $text = $this->html->find('#Display_MConError')->text();
         $text = preg_replace('/\s\s+/', ' ', $text);
         $text = trim($text);
-        throw new VisitException('Login failed. Message: ' . $text);
+        $this->log->error('Login failed. Message: {text}', ['text' => $text]);
+        throw new VisitException();
     }
 
     /**
@@ -567,7 +577,8 @@ class BNI extends AbstractWebCrawler implements ModuleInterface
                 $language = $this->configuration('language');
                 $tables = $this->html->find('div#TitleBar > table')->extractTable(true);
                 if (empty($tables)) {
-                    throw new VisitException('Table for Statement not found.');
+                    $this->log->error('Table for Statement not found.');
+                    throw new VisitException();
                 }
                 $transactions = [];
                 while ($table = array_shift($tables)) {
