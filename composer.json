@@ -11,8 +11,8 @@
         }
     ],
     "require": {
-        "ijortengab/tools": ">=0.0.3",
-        "ijortengab/browser": ">=0.0.8",
+        "ijortengab/tools": ">=0.0.4",
+        "ijortengab/browser": ">=0.0.9",
         "ijortengab/parse-html": ">=0.0.7",
         "ijortengab/parse-info": ">=0.0.3"
     },
