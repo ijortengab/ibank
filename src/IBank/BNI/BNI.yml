@@ -1,0 +1,91 @@
+# Menu Definitions.
+menu:
+  home_page:
+    url: https://ibank.bni.co.id
+    verify:
+      home_page_authenticated: bni_parse_home_page_authenticated
+      home_page_anonymous: bni_parse_home_page_anonymous
+      404_page: bni_parse_404_page
+  login_page:
+    verify:
+      home_page_anonymous: bni_parse_home_page_anonymous
+      form_exists: bni_parse_login_page
+  login_form:
+    verify:
+      home_page_authenticated: bni_parse_home_page_authenticated
+      login_error: bni_parse_login_form_error
+  account_page:
+    verify:
+      table_account: bni_parse_account_page
+  balance_inquiry_page:
+    verify:
+      form_exists: bni_parse_account_type_form
+  account_type_form:
+    verify:                    
+      form_exists: bni_parse_account_number_form
+  account_number_form:
+    verify:
+      404_page:
+        - reset_execute
+        - bni_reset_execute
+      table_balance: bni_parse_balance_inquiry_page
+      mini_statement_page: bni_parse_mini_statement_page
+  transaction_history_page:
+    verify:
+      form_exists: bni_parse_account_type_form
+  mini_statement_page:
+    verify:
+      mini_statement_select_account_number: bni_parse_account_number_form
+
+# Target Definitions.
+target:
+  get_balance:
+    - type: visit
+      menu: home_page
+      must_verify: true
+    - type: visit
+      menu: account_page
+      must_verify: true
+    - type: visit
+      menu: balance_inquiry_page
+      must_verify: true
+    - type: visit
+      menu: account_type_form
+      must_verify: true
+    - type: visit
+      menu: account_number_form
+      must_verify: true
+  get_last_transaction:
+    - type: visit
+      menu: home_page
+      must_verify: true
+    - type: visit
+      menu: account_page
+      must_verify: true
+    - type: visit
+      menu: mini_statement_page
+      must_verify: true
+    - type: visit
+      menu: account_number_form
+      must_verify: true
+    
+# Reference    
+reference:
+  home_page:
+    description: 'Dari context anonymous ke authenticated.'
+    type: prepend
+    steps:
+      - type: visit
+        menu: login_page
+        must_verify: true
+      - type: visit
+        menu: login_form
+        must_verify: true        
+  404_page:
+    description: 'Dari page 404 menuju home_page.'
+    type: prepend
+    steps:
+      - type: visit
+        menu: login_page
+        must_verify: true
+        

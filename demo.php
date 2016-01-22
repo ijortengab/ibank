@@ -10,7 +10,7 @@
  * fitur-fitur di project IBank.
  *
  * Perhatian: Jika Anda memindahkan file ini, sesuaikan kembali value dari
- * variable $autoload, tambahkan pada array dengan urutan pertama.
+ * variable $autoload untuk lokasi path file autoload.php. 
  */
 
 use IjorTengab\IBank\IBank;
@@ -25,9 +25,24 @@ $autoload = [
 ];
 
 /**
- * Prepare.
+ * Prepare anything.
  */
-require('_demo.php');
+$found = false;
+foreach ($autoload as $file) {
+    if (file_exists($file)) {
+        require $file;
+        $found = true;
+        break;
+    }
+}
+$found or die('Composer autoload tidak ditemukan.' . PHP_EOL);
+
+$eol = PHP_SAPI === 'cli' ? PHP_EOL : '<br />' . PHP_EOL;
+$_pre = PHP_SAPI === 'cli' ? '' : '<pre>';
+$pre_ = PHP_SAPI === 'cli' ? '' : '</pre>';
+define('EOL', $eol);
+define('_PRE', $_pre);
+define('PRE_', $pre_);
 
 ################################################################################
 
