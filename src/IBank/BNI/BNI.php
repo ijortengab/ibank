@@ -6,8 +6,8 @@ use IjorTengab\ActionWrapper\ModuleInterface;
 use IjorTengab\WebCrawler\AbstractWebCrawler;
 use IjorTengab\WebCrawler\WebCrawlerTrait;
 use IjorTengab\WebCrawler\VisitException;
+use IjorTengab\WebCrawler\ExecuteException;
 use IjorTengab\IBank\WebCrawlerModuleTrait;
-use IjorTengab\IBank\Log;
 use IjorTengab\DateTime\Range;
 use Symfony\Component\Yaml\Parser;
 use Symfony\Component\Yaml\Exception\ParseException;
@@ -27,6 +27,7 @@ class BNI extends AbstractWebCrawler implements ModuleInterface
     use WebCrawlerModuleTrait, WebCrawlerTrait;
 
     const BNI_MAIN_URL = 'https://ibank.bni.co.id';
+    const BNI_DATE_FORMAT = 'd-M-Y';
 
     /**
      * Internal property.
@@ -34,6 +35,9 @@ class BNI extends AbstractWebCrawler implements ModuleInterface
     public $username;
     public $password;
     public $account;
+    // OPR berarti Tabungan dan Giro.
+    // Saat ini baru mendukung tipe ini saja.
+    public $account_type = 'OPR';
     public $range;
 
     /**
@@ -87,6 +91,105 @@ class BNI extends AbstractWebCrawler implements ModuleInterface
     }
 
     /**
+     * Override parent::executeBefore()
+     * Verifikasi kebutuhan sebelum melanjutkan execute.
+     *
+     * Catatan tentang validitas mutasi rekening di BNI.
+     *
+     *  - Tanggal transaksi paling lama yang bisa diambil adalah 6 bulan dari
+     *    hari ini. Jika sekarang tanggal 25 januari 2016, maka bila start
+     *    date 25-Jul-2015, error yang muncul adalah: "Tanggal Awal tidak boleh
+     *    Melebihi 6 Bulan dari Tanggal Hari Ini" dan akan valid jika start_date
+     *    24-Jul-2016.
+     *
+     *  - End date yang lewat dari hari ini, maka error yang muncul adalah:
+     *    "Tanggal Akhir tidak boleh melebihi tanggal hari ini".
+     *
+     *  - Tiap sekali request, maka interval tidak boleh lebih 31 hari, jika
+     *    lebih dari 31 hari, error yang muncul adalah: "Transaksi anda tidak
+     *    dapat diproses. Periode tanggal yang anda pilih lebih dari 31 hari.
+     *    Silahkan masukkan periode tanggal sesuai ketentuan.". Meski begitu
+     *    IBank dapat mengantisipasi hal ini.
+     *
+     *  - Tanggal yang tidak valid (contoh 32-Jul-2015) atau format yang tidak
+     *    valid (contoh 1-Aug-2015) maka error yang muncul adalah "Tanggal Akhir
+     *    harus menggunakan format yang telah ditentukan dan tanggal yang
+     *    valid".
+     */
+    protected function executeBefore()
+    {
+        if (null === $this->username) {
+            $this->log->error('Username belum didefinisikan.');
+            throw new ExecuteException;
+        }
+        if (null === $this->password) {
+            $this->log->error('Password belum didefinisikan.');
+            throw new ExecuteException;
+        }
+        switch ($this->target) {
+            case 'get_balance':
+                break;
+
+            case 'get_transaction':
+                break;
+
+            case 'get_last_transaction':
+                break;
+
+            case 'get_range_transaction':
+                if (null === $this->range) {
+                    $this->log->error('Range belum didefinisikan.');
+                    throw new ExecuteException;
+                }
+                switch ($this->range) {
+                    case 'now':
+                    case 'today':
+                    case 'last week':
+                    case 'last month':
+                        break;
+
+                    default:
+                        // Verifikasi rangenya.
+                        $this->range = Range::create($this->range);
+                        if (!$this->range->is_start_valid) {
+                            $this->log->notice('Tanggal awal tidak valid. Tanggal otomatis diganti menjadi waktu saat ini.');
+                        }
+                        if (!$this->range->is_end_valid) {
+                            $this->log->notice('Tanggal awal tidak valid. Tanggal otomatis diganti menjadi waktu saat ini.');
+                        }
+                        // Start date tidak boleh lebih dari 6 bulan sejak hari
+                        // ini.
+                        $oldest = new \DateTime('6 month ago');
+                        // Masih kudu dikurangi satu hari lagi agar tidak
+                        // error (lihat catatan pada doc comment fungsi ini).
+                        $oldest->sub(new \DateInterval('P1D'));
+                        if (!$this->range->comparison($oldest, 'less', 'start')) {
+                            // Tapi kalo masih di hari yang sama, ya gpp.
+                            if ($oldest->format('Y-m-d') != $this->range->format('Y-m-d', 'start')) {
+                                $this->log->error('Tanggal Awal tidak boleh melebihi 6 Bulan dari Tanggal Hari Ini.');
+                                throw new ExecuteException;
+                            }
+                        }
+
+                        // End date tidak boleh lewat dari hari ini.
+                        $now = new \DateTime();
+                        if (!$this->range->comparison($now, 'greater', 'end')) {
+                            // Tapi kalo masih di hari yang sama, ya gpp.
+                            if ($now->format('Y-m-d') != $this->range->format('Y-m-d', 'end')) {
+                                $this->log->error('Tanggal Akhir tidak boleh melebihi Tanggal Hari Ini.');
+                                throw new ExecuteException;
+                            }
+                        }
+                }
+                break;
+
+            default:
+                // Do something.
+                break;
+        }
+    }
+
+    /**
      * Override method.
      *
      * Set browser as mobile, and not use curl as library request.
@@ -115,6 +218,13 @@ class BNI extends AbstractWebCrawler implements ModuleInterface
         $this->configuration('menu][' . $menu_name . '][url', null);
     }
 
+    /**
+     * Karena visitAfter menghapus url, maka kembalikan default.
+     */
+    protected function resetExecuteAfter()
+    {
+        $this->configuration('menu][home_page][url', self::BNI_MAIN_URL);
+    }
     /**
      * Memastikan bahwa halaman mengandung indikasi yang dibutuhkan untuk
      * nantinya bisa diparsing sesuai dengan target.
@@ -150,6 +260,9 @@ class BNI extends AbstractWebCrawler implements ModuleInterface
 
             case 'mini_statement_page':
                 return ($this->html->find('input[name=PageName][value=OperMiniAccIDSelectRq]')->length > 0);
+
+            case 'select_range_page':
+                return ($this->html->find('#Search_Criteria_tr')->length > 0);
         }
     }
 
@@ -163,6 +276,7 @@ class BNI extends AbstractWebCrawler implements ModuleInterface
         switch ($this->target) {
             case 'get_balance':
             case 'get_last_transaction':
+            case 'get_range_transaction':
                 $url_account_page = $this->html->find('td a')->eq(0)->attr('href');
                 if (empty($url_account_page)) {
                     $this->log->error('Url for menu "account_page" not found.');
@@ -186,8 +300,8 @@ class BNI extends AbstractWebCrawler implements ModuleInterface
             case 'get_last_transaction':
             default:
                 // Belum login, maka tambah langkah baru.
-                $ref = $this->configuration('reference][home_page');                
-                
+                $ref = $this->configuration('reference][home_page');
+
                 $this->addStep($ref['type'], $ref['steps']);
 
                 // Cari tahu bahasa situs, penting untuk parsing yang
@@ -258,15 +372,20 @@ class BNI extends AbstractWebCrawler implements ModuleInterface
 
             case 'get_last_transaction':
                 $url_mini_statement_page = $this->html->find('td a')->eq(1)->attr('href');
-                $url_transaction_history_page = $this->html->find('td a')->eq(2)->attr('href');
-                // Simpan pada temporary.                
+                if (empty($url_mini_statement_page)) {
+                    $this->log->error('Url for menu "mini_statement_page" not found.');
+                    throw new VisitException;
+                }
                 $this->configuration('menu][mini_statement_page][url', $url_mini_statement_page);
-                // $this->configuration('temporary][url_transaction_history_page', $url_transaction_history_page);
+                break;
 
-                // if (empty($url_transaction_history_page)) {
-                    // throw new VisitException('Url for menu "transaction_history_page" not found.');
-                // }
-
+            case 'get_range_transaction':
+                $url_transaction_history_page = $this->html->find('td a')->eq(2)->attr('href');
+                if (empty($url_transaction_history_page)) {
+                    $this->log->error('Url for menu "transaction_history_page" not found.');
+                    throw new VisitException;
+                }
+                $this->configuration('menu][transaction_history_page][url', $url_transaction_history_page);
                 break;
         }
     }
@@ -281,6 +400,7 @@ class BNI extends AbstractWebCrawler implements ModuleInterface
         switch ($this->target) {
             case 'get_balance':
             case 'get_last_transaction':
+            case 'get_range_transaction':
                 $form = $this->html->find('form');
                 $url = $form->attr('action');
                 if (empty($url)) {
@@ -288,8 +408,8 @@ class BNI extends AbstractWebCrawler implements ModuleInterface
                     throw new VisitException;
                 }
                 $fields = $form->preparePostForm('AccountIDSelectRq');
-                // Pilih pada Tabungan dan Giro dengan value = OPR.
-                $fields['MAIN_ACCOUNT_TYPE'] = 'OPR';
+                //
+                $fields['MAIN_ACCOUNT_TYPE'] = $this->account_type;
                 $this->configuration('menu][account_type_form][url', $url);
                 $this->configuration('menu][account_type_form][fields', $fields);
                 break;
@@ -319,6 +439,7 @@ class BNI extends AbstractWebCrawler implements ModuleInterface
                 break;
 
             case 'get_last_transaction':
+            // case 'get_range_transaction':
                 $form = $this->html->find('form');
                 $url = $form->attr('action');
                 if (empty($url)) {
@@ -384,18 +505,10 @@ class BNI extends AbstractWebCrawler implements ModuleInterface
                 }
                 $this->configuration('menu][login_page][url', $url);
 
-                $ref = $this->configuration('reference][404_page');                
+                $ref = $this->configuration('reference][404_page');
                 $this->addStep($ref['type'], $ref['steps']);
                 break;
         }
-    }
-
-    /**
-     *
-     */
-    protected function bniResetExecute()
-    {
-        $this->configuration('menu][home_page][url', self::BNI_MAIN_URL);
     }
 
     /**
@@ -410,30 +523,61 @@ class BNI extends AbstractWebCrawler implements ModuleInterface
         throw new VisitException;
     }
 
-    /**
-     *
+     /**
+     * Parsing menu "select_range_page" sesuai dengan kebutuhan
+     * pada property $target.
+     * Alternative handler for bni_parse_select_range_page.
      */
-    protected function bniCheckRange()
+    protected function bniParseSelectRangePage()
     {
-        $key = (null === $this->range) ? 'null' : 'other';
-        $append_step = $this->step[$key]['append_step'];
-        $this->addStep('append', $append_step);
+        switch ($this->target) {
+            case 'get_range_transaction':
+                $form = $this->html->find('form');
+                $url = $form->attr('action');
+                $fields = $form->preparePostForm('FullStmtInqRq');
+                // Untuk kasus range yang spesifik dan sering digunakan, maka
+                // tidak perlu diconvert ke object Range. Langsung aja,
+                // gak pake lama.
+                $fields['Search_Option'] = 'TxnPrd';
+                switch ($this->range) {
+                    case 'now':
+                    case 'today':
+                        $fields['TxnPeriod'] = 'Today';
+                        break;
 
-        switch ($key) {
-            case 'null':
-                $this->configuration('menu][mini_statement_page][url', $this->configuration('temporary][url_mini_statement_page'));
-                break;
+                    case 'last week':
+                        $fields['TxnPeriod'] = 'LastWeek';
+                        break;
 
-            case 'other':
-                // Ganti menjadi object.
-                $this->range = Range::create($this->range);
-                if (false === $this->range->is_valid['from']) {
-                    $this->log->notice('Range "from" tidak valid. Otomatis diubah menjadi waktu saat ini: {time}.', ['time' => $this->range->from_string]);
+                    case 'last month':
+                        $fields['TxnPeriod'] = 'LastMonth';
+                        break;
+
+                    default:
+                        $fields['TxnPeriod'] = '-1';
+                        $fields['Search_Option'] = 'Date';
+
+                        // Aturan BNI adalah sekali request, maka total maksimal
+                        // 31 hari, berarti antara start dan end ada 30 hari.
+                        if ($this->range->isSameMonth() || $this->range->diff()->days <= 30) {
+                            // tidak perlu dipecah.
+                            $fields['txnSrcFromDate'] = $this->range->format(self::BNI_DATE_FORMAT, 'start');
+                            $fields['txnSrcToDate'] = $this->range->format(self::BNI_DATE_FORMAT, 'end');
+                        }
+                        else {
+                            // Untuk interval lebih dari 30 hari, maka kita perlu
+                            // pecah menjadi perrbulan.
+
+                            die('BELUM SUPPORT');
+                            // $months = $this->range->splitPerMonth();
+                            // $debugname = 'months'; echo "\r\n<pre>" . __FILE__ . ":" . __LINE__ . "\r\n". 'var_dump(' . $debugname . '): '; var_dump($$debugname); echo "</pre>\r\n";
+
+                        }
+                        break;
                 }
-                if (false === $this->range->is_valid['to']) {
-                    $this->log->notice('Range "to" tidak valid. Otomatis diubah menjadi waktu saat ini: {time}.', ['time' => $this->range->to_string]);
-                }
-                $this->configuration('menu][transaction_history_page][url', $this->configuration('temporary][url_transaction_history_page'));
+                $this->configuration('menu][select_range_form][url', $url);
+                $this->configuration('menu][select_range_form][fields', $fields);
+
                 break;
         }
     }

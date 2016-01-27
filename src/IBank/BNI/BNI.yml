@@ -21,13 +21,12 @@ menu:
     verify:
       form_exists: bni_parse_account_type_form
   account_type_form:
-    verify:                    
+    verify:
+      select_range_page: bni_parse_select_range_page
       form_exists: bni_parse_account_number_form
   account_number_form:
     verify:
-      404_page:
-        - reset_execute
-        - bni_reset_execute
+      404_page: reset_execute
       table_balance: bni_parse_balance_inquiry_page
       mini_statement_page: bni_parse_mini_statement_page
   transaction_history_page:
@@ -68,8 +67,26 @@ target:
     - type: visit
       menu: account_number_form
       must_verify: true
-    
-# Reference    
+  get_range_transaction:
+    - type: visit
+      menu: home_page
+      must_verify: true
+    - type: visit
+      menu: account_page
+      must_verify: true
+    - type: visit
+      menu: transaction_history_page
+      must_verify: true
+    - type: visit
+      menu: account_type_form
+      must_verify: true
+    - type: visit
+      menu: select_range_form
+      must_verify: false
+  test:
+    - handler: entahlah
+
+# Reference
 reference:
   home_page:
     description: 'Dari context anonymous ke authenticated.'
@@ -80,7 +97,7 @@ reference:
         must_verify: true
       - type: visit
         menu: login_form
-        must_verify: true        
+        must_verify: true
   404_page:
     description: 'Dari page 404 menuju home_page.'
     type: prepend
@@ -88,4 +105,3 @@ reference:
       - type: visit
         menu: login_page
         must_verify: true
-        
