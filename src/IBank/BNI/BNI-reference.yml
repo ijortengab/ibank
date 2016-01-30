@@ -1,0 +1,46 @@
+# Reference
+reference:
+  home_page:
+    description: 'Dari context anonymous ke authenticated.'
+    type: prepend
+    steps:
+      - type: visit
+        menu: login_page
+        must_verify: true
+      - type: visit
+        menu: login_form
+        must_verify: true
+  404_page:
+    description: 'Dari page 404 menuju home_page.'
+    type: prepend
+    steps:
+      - type: visit
+        menu: login_page
+        must_verify: true
+  transaction_next_page:
+    description: 'Next Page dari halaman transaction history.'
+    type: prepend
+    steps:
+      - type: visit
+        menu: transaction_next_page
+        must_verify: true
+  revisit_select_range_page:
+    description: 'Kembali ke halaman select_range_page untuk mengulang pencarian pada bulan berikutnya.'
+    type: append
+    steps:
+      - type: visit
+        menu: select_range_page
+        must_verify: true
+      - handler: bni_transaction_finishing
+  revisit_select_range_form:
+    description: 'Mengirim form lagi untuk over range.'
+    type: prepend
+    steps:
+      - type: visit
+        menu: select_range_form
+        must_verify: true
+  transaction_finishing:
+    description: ''
+    type: append
+    steps:
+      - handler: bni_transaction_finishing

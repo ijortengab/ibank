@@ -1,0 +1,50 @@
+# Target Definitions.
+target:
+  get_balance:
+    - type: visit
+      menu: home_page
+      must_verify: true
+    - type: visit
+      menu: account_page
+      must_verify: true
+    - type: visit
+      menu: balance_inquiry_page
+      must_verify: true
+    - type: visit
+      menu: account_type_form
+      must_verify: true
+    - type: visit
+      menu: account_number_form
+      must_verify: true
+  get_last_transaction:
+    - type: visit
+      menu: home_page
+      must_verify: true
+    - type: visit
+      menu: account_page
+      must_verify: true
+    - type: visit
+      menu: mini_statement_page
+      must_verify: true
+    - type: visit
+      menu: account_number_form
+      must_verify: true
+  get_range_transaction:
+    - type: visit
+      menu: home_page
+      must_verify: true
+    - type: visit
+      menu: account_page
+      must_verify: true
+    - type: visit
+      menu: transaction_history_page
+      must_verify: true
+    - type: visit
+      menu: account_type_form
+      must_verify: true
+    - type: visit
+      menu: select_range_form
+      must_verify: true
+    - handler: bni_transaction_finishing
+  test:
+    - handler: entahlah

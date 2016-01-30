@@ -32,13 +32,14 @@ class BNI extends AbstractWebCrawler implements ModuleInterface
     /**
      * Internal property.
      */
-    public $username;
-    public $password;
-    public $account;
-    // OPR berarti Tabungan dan Giro.
+    protected $username;
+    protected $password;
+    protected $account;
+    // OPR berarti Account type: Tabungan dan Giro.
     // Saat ini baru mendukung tipe ini saja.
-    public $account_type = 'OPR';
-    public $range;
+    protected $account_type = 'OPR';
+    protected $range;
+    protected $sort;
 
     /**
      * @inherit.
@@ -55,11 +56,22 @@ class BNI extends AbstractWebCrawler implements ModuleInterface
     {
         $yaml = new Parser();
         try {
-            $value = $yaml->parse(file_get_contents(__DIR__ . DIRECTORY_SEPARATOR . 'BNI.yml'));
+            $value = [];
+            $value += $yaml->parse(file_get_contents(__DIR__ . DIRECTORY_SEPARATOR . 'BNI-menu.yml'));
+            $value += $yaml->parse(file_get_contents(__DIR__ . DIRECTORY_SEPARATOR . 'BNI-target.yml'));
+            $value += $yaml->parse(file_get_contents(__DIR__ . DIRECTORY_SEPARATOR . 'BNI-reference.yml'));
             return $value;
         } catch (ParseException $e) {
             $this->log->error('Unable to parse the YAML string: {string}', ['string' => $e->getMessage()]);
         }
+    }
+
+    protected function init()
+    {
+        // Default nama file untuk keperluan debug.
+        $_ = DIRECTORY_SEPARATOR;
+        $this->configuration('temporary][browser][browser_history', '..' . $_ . 'debug' . $_ . 'history.log');
+        $this->configuration('temporary][browser][browser_response_body', '..' . $_ . 'debug' . $_ . 'response_body.html');
     }
 
     /**
@@ -84,6 +96,7 @@ class BNI extends AbstractWebCrawler implements ModuleInterface
             case 'password':
             case 'account':
             case 'range':
+            case 'sort':
                 $this->{$property} = $value;
                 break;
         }
@@ -108,8 +121,10 @@ class BNI extends AbstractWebCrawler implements ModuleInterface
      *  - Tiap sekali request, maka interval tidak boleh lebih 31 hari, jika
      *    lebih dari 31 hari, error yang muncul adalah: "Transaksi anda tidak
      *    dapat diproses. Periode tanggal yang anda pilih lebih dari 31 hari.
-     *    Silahkan masukkan periode tanggal sesuai ketentuan.". Meski begitu
-     *    IBank dapat mengantisipasi hal ini.
+     *    Silahkan masukkan periode tanggal sesuai ketentuan.".
+     *
+     *  - Untuk support interval lebih dari 31 hari, maka module BNI melakukan
+     *    split interval, kemudian melakukan request secara looping.
      *
      *  - Tanggal yang tidak valid (contoh 32-Jul-2015) atau format yang tidak
      *    valid (contoh 1-Aug-2015) maka error yang muncul adalah "Tanggal Akhir
@@ -165,7 +180,7 @@ class BNI extends AbstractWebCrawler implements ModuleInterface
                         $oldest->sub(new \DateInterval('P1D'));
                         if (!$this->range->comparison($oldest, 'less', 'start')) {
                             // Tapi kalo masih di hari yang sama, ya gpp.
-                            if ($oldest->format('Y-m-d') != $this->range->format('Y-m-d', 'start')) {
+                            if (!$this->range->isSameDay($oldest, 'start')) {
                                 $this->log->error('Tanggal Awal tidak boleh melebihi 6 Bulan dari Tanggal Hari Ini.');
                                 throw new ExecuteException;
                             }
@@ -175,17 +190,53 @@ class BNI extends AbstractWebCrawler implements ModuleInterface
                         $now = new \DateTime();
                         if (!$this->range->comparison($now, 'greater', 'end')) {
                             // Tapi kalo masih di hari yang sama, ya gpp.
-                            if ($now->format('Y-m-d') != $this->range->format('Y-m-d', 'end')) {
+                            if (!$this->range->isSameDay($now, 'end')) {
                                 $this->log->error('Tanggal Akhir tidak boleh melebihi Tanggal Hari Ini.');
                                 throw new ExecuteException;
                             }
                         }
+                }
+
+                switch ($this->sort) {
+                    case 'asc':
+                    case 'desc':
+                        break;
+
+                    case 'ASC':
+                    case 'ascending':
+                    case 'ASCENDING':
+                        $this->sort = 'asc';
+                        break;
+
+                    case 'descending':
+                    case 'DESC':
+                    case 'DESCENDING':
+                        $this->sort = 'desc';
+                        break;
+
+                    default:
+                        $this->sort = 'desc';
+                        $this->log->notice('Transaksi otomatis diurut dengan pola descending.');
+                        break;
                 }
                 break;
 
             default:
                 // Do something.
                 break;
+        }
+    }
+
+    protected function executeAfter()
+    {
+        // Memastikan bahwa url home sudah ada pada configuration.
+        $url = $this->configuration('menu][home_page][url');
+        if (null === $url && null !== $this->html) {
+            $form = $this->html->find('form');
+            $url = $form->attr('action');
+            $fields = $form->preparePostForm('__HOME__');
+            $this->configuration('menu][home_page][url', $url);
+            $this->configuration('menu][home_page][fields', $fields);
         }
     }
 
@@ -225,6 +276,7 @@ class BNI extends AbstractWebCrawler implements ModuleInterface
     {
         $this->configuration('menu][home_page][url', self::BNI_MAIN_URL);
     }
+
     /**
      * Memastikan bahwa halaman mengandung indikasi yang dibutuhkan untuk
      * nantinya bisa diparsing sesuai dengan target.
@@ -247,6 +299,7 @@ class BNI extends AbstractWebCrawler implements ModuleInterface
                 return ($this->html->find('form')->length > 0);
 
             case 'login_error':
+            case 'select_range_error':
                 return ($this->html->find('#Display_MConError')->length > 0);
 
             case 'table_balance':
@@ -263,6 +316,12 @@ class BNI extends AbstractWebCrawler implements ModuleInterface
 
             case 'select_range_page':
                 return ($this->html->find('#Search_Criteria_tr')->length > 0);
+
+            case 'table_transaction_page':
+                return ($this->html->find('input[name=page][value=FullStmtInqRq]')->length > 0);
+
+            case 'session_destroy':
+                return ($this->html->find('input[name=page][value=SessionErrorMessage]')->length > 0);
         }
     }
 
@@ -296,8 +355,6 @@ class BNI extends AbstractWebCrawler implements ModuleInterface
     {
         switch ($this->target) {
             // Apapun targetnya, aktivitasnya sama.
-            case 'get_balance':
-            case 'get_last_transaction':
             default:
                 // Belum login, maka tambah langkah baru.
                 $ref = $this->configuration('reference][home_page');
@@ -439,7 +496,6 @@ class BNI extends AbstractWebCrawler implements ModuleInterface
                 break;
 
             case 'get_last_transaction':
-            // case 'get_range_transaction':
                 $form = $this->html->find('form');
                 $url = $form->attr('action');
                 if (empty($url)) {
@@ -472,18 +528,24 @@ class BNI extends AbstractWebCrawler implements ModuleInterface
             case 'get_balance':
                 // Get Balance.
                 $indication_table_balance = $this->html->find('table[id~=BalanceDisplayTable]')->eq(1);
-                $span = $indication_table_balance->find('tr#Row5_5 td#Row5_5_column2 div > span');
+                $span = $indication_table_balance->find('tr#Row5_5 td#Row5_5_column2 span');
                 $balance = $span->text();
                 $this->result = $balance;
 
                 // Keep information of home_page
-                $form = $this->html->find('form');
-                $url = $form->attr('action');
-                $fields = $form->preparePostForm('__HOME__');
-                $this->configuration('menu][home_page][url', $url);
-                $this->configuration('menu][home_page][fields', $fields);
+                $this->bniSaveUrlHomePage();
                 break;
         }
+    }
+
+    // Keep information of home_page
+    protected function bniSaveUrlHomePage()
+    {
+        $form = $this->html->find('form');
+        $url = $form->attr('action');
+        $fields = $form->preparePostForm('__HOME__');
+        $this->configuration('menu][home_page][url', $url);
+        $this->configuration('menu][home_page][fields', $fields);
     }
 
     /**
@@ -494,8 +556,7 @@ class BNI extends AbstractWebCrawler implements ModuleInterface
     protected function bniParse404Page()
     {
         switch ($this->target) {
-            case 'get_balance':
-            case 'get_last_transaction':
+            default:
                 // 404 terjadi, maka tambah langkah baru.
                 // Temukan url login.
                 $url = $this->html->find('a#Login')->attr('href');
@@ -512,7 +573,7 @@ class BNI extends AbstractWebCrawler implements ModuleInterface
     }
 
     /**
-     * Todo.
+     * Alternative handler for bni_parse_login_form_error.
      */
     protected function bniParseLoginFormError()
     {
@@ -523,67 +584,19 @@ class BNI extends AbstractWebCrawler implements ModuleInterface
         throw new VisitException;
     }
 
-     /**
-     * Parsing menu "select_range_page" sesuai dengan kebutuhan
-     * pada property $target.
-     * Alternative handler for bni_parse_select_range_page.
+    /**
+     * Alternative handler for bni_parse_select_range_error.
      */
-    protected function bniParseSelectRangePage()
+    protected function bniParseSelectRangeError()
     {
-        switch ($this->target) {
-            case 'get_range_transaction':
-                $form = $this->html->find('form');
-                $url = $form->attr('action');
-                $fields = $form->preparePostForm('FullStmtInqRq');
-                // Untuk kasus range yang spesifik dan sering digunakan, maka
-                // tidak perlu diconvert ke object Range. Langsung aja,
-                // gak pake lama.
-                $fields['Search_Option'] = 'TxnPrd';
-                switch ($this->range) {
-                    case 'now':
-                    case 'today':
-                        $fields['TxnPeriod'] = 'Today';
-                        break;
-
-                    case 'last week':
-                        $fields['TxnPeriod'] = 'LastWeek';
-                        break;
-
-                    case 'last month':
-                        $fields['TxnPeriod'] = 'LastMonth';
-                        break;
-
-                    default:
-                        $fields['TxnPeriod'] = '-1';
-                        $fields['Search_Option'] = 'Date';
-
-                        // Aturan BNI adalah sekali request, maka total maksimal
-                        // 31 hari, berarti antara start dan end ada 30 hari.
-                        if ($this->range->isSameMonth() || $this->range->diff()->days <= 30) {
-                            // tidak perlu dipecah.
-                            $fields['txnSrcFromDate'] = $this->range->format(self::BNI_DATE_FORMAT, 'start');
-                            $fields['txnSrcToDate'] = $this->range->format(self::BNI_DATE_FORMAT, 'end');
-                        }
-                        else {
-                            // Untuk interval lebih dari 30 hari, maka kita perlu
-                            // pecah menjadi perrbulan.
-
-                            die('BELUM SUPPORT');
-                            // $months = $this->range->splitPerMonth();
-                            // $debugname = 'months'; echo "\r\n<pre>" . __FILE__ . ":" . __LINE__ . "\r\n". 'var_dump(' . $debugname . '): '; var_dump($$debugname); echo "</pre>\r\n";
-
-                        }
-                        break;
-                }
-                $this->configuration('menu][select_range_form][url', $url);
-                $this->configuration('menu][select_range_form][fields', $fields);
-
-                break;
-        }
+        $text = $this->html->find('#Display_MConError')->text();
+        $text = preg_replace('/\s\s+/', ' ', $text);
+        $text = trim($text);
+        $this->log->error('Select Range failed. Message: {text}', ['text' => $text]);
+        throw new VisitException;
     }
 
     /**
-     *
      * Alternative handler for bni_parse_mini_statement_page.
      */
     protected function bniParseMiniStatementPage()
@@ -629,11 +642,11 @@ class BNI extends AbstractWebCrawler implements ModuleInterface
                 // Set to result.
                 $this->result = $transactions;
 
-                // Keep information of home_page
-                $form = $this->html->find('form');
-                $url = $form->attr('action');
-                $fields = $form->preparePostForm('__HOME__');
-                // Cari nomor rekening.
+                // Keep information of home_page.
+                $this->bniSaveUrlHomePage();
+                // Tapi ada yang perlu diedit, karena isian pilih rekening
+                // ternyata element select sehingga perlu kita ganti.
+                $fields = $this->configuration('menu][home_page][fields');
                 $value = null;
                 foreach ($fields['MiniStmt'] as $number) {
                     if (strpos($number, $this->account) !== false) {
@@ -641,10 +654,243 @@ class BNI extends AbstractWebCrawler implements ModuleInterface
                     }
                 }
                 $fields['MiniStmt'] = $value;
-                $this->configuration('menu][home_page][url', $url);
                 $this->configuration('menu][home_page][fields', $fields);
                 break;
         }
+    }
+
+    /**
+     * Parsing menu "select_range_page" sesuai dengan kebutuhan
+     * pada property $target.
+     * Alternative handler for bni_parse_select_range_page.
+     */
+    protected function bniParseSelectRangePage()
+    {
+        switch ($this->target) {
+            case 'get_range_transaction':
+                $form = $this->html->find('form');
+                $url = $form->attr('action');
+                $fields = $form->preparePostForm('FullStmtInqRq');
+                // Untuk kasus range yang spesifik dan sering digunakan, maka
+                // tidak perlu diconvert ke object Range. Langsung aja,
+                // gak pake lama.
+                $fields['Search_Option'] = 'TxnPrd';
+                switch ($this->range) {
+                    case 'now':
+                    case 'today':
+                        $fields['TxnPeriod'] = 'Today';
+                        break;
+
+                    case 'last week':
+                        $fields['TxnPeriod'] = 'LastWeek';
+                        break;
+
+                    case 'last month':
+                        $fields['TxnPeriod'] = 'LastMonth';
+                        break;
+
+                    default:
+                        $fields['TxnPeriod'] = '-1';
+                        $fields['Search_Option'] = 'Date';
+
+                        // Aturan BNI adalah sekali request, maka total maksimal
+                        // 31 hari, berarti antara start dan end ada 30 hari.
+                        if ($this->range->isSameMonth() || $this->range->diff()->days <= 30) {
+                            // tidak perlu dipecah.
+                            $fields['txnSrcFromDate'] = $this->range->format(self::BNI_DATE_FORMAT, 'start');
+                            $fields['txnSrcToDate'] = $this->range->format(self::BNI_DATE_FORMAT, 'end');
+                        }
+                        else {
+                            // Untuk interval lebih dari 30 hari, maka kita perlu
+                            // pecah menjadi per bulan.
+                            $this->configuration('temporary][over_range', true);
+                            $this->range = $this->range->splitPerMonth();
+                            // Hasil split per month adalah asc, maka sesuaikan
+                            if ($this->sort == 'desc') {
+                                krsort($this->range);
+                            }
+
+                            $first = array_shift($this->range);
+                            $fields['txnSrcFromDate'] = $first->format(self::BNI_DATE_FORMAT, 'start');
+                            $fields['txnSrcToDate'] = $first->format(self::BNI_DATE_FORMAT, 'end');
+                        }
+                        break;
+                }
+                $this->configuration('menu][select_range_form][url', $url);
+                $this->configuration('menu][select_range_form][fields', $fields);
+                break;
+        }
+    }
+
+    /**
+     * Alternative handler for bni_parse_transaction_page.
+     */
+    protected function bniParseTransactionPage()
+    {
+        switch ($this->target) {
+            case 'get_range_transaction':
+                $tables = $this->html->extractTable(true);
+                $transaction = $this->bniFilterTransactionTable($tables);
+                $temporary_result = $this->configuration('temporary][result');
+                if (null === $temporary_result) {
+                    $temporary_result = [];
+                }
+                $temporary_result = array_merge($temporary_result, $transaction);
+                $this->configuration('temporary][result', $temporary_result);
+                break;
+        }
+    }
+
+    /**
+     * Untuk range yang lebih dari 31 hari, maka perlu dilakukan split.
+     * Alternative handler for
+     * bni_parse_if_over_range_then_save_select_range_page_location.
+     */
+    protected function bniParseIfOverRangeThenSaveSelectRangePageLocation()
+    {
+        $is_over_range = $this->configuration('temporary][over_range');
+        if ($is_over_range) {
+            // Cek lagi apakah sudah selesai loopingnya.
+            // looping akan dikurangi oleh handler
+            // bni_parse_select_range_page_revisited
+            if (empty($this->range)) {
+                // Hapus informasi over_range.
+                $this->configuration('temporary][over_range', false);
+                return;
+            }
+
+            $form = $this->html->find('form');
+            $url = $form->attr('action');
+
+            $fields = $form->preparePostForm('__BACK__');
+            $this->configuration('menu][select_range_page][url', $url);
+            $this->configuration('menu][select_range_page][fields', $fields);
+        }
+    }
+
+    /**
+     * Alternative handler for
+     * bni_parse_if_over_range_then_visit_select_range_page_append.
+     */
+    protected function bniParseIfOverRangeThenVisitSelectRangePageAppend()
+    {
+        $is_over_range = $this->configuration('temporary][over_range');
+        if ($is_over_range) {
+            $ref = $this->configuration('reference][revisit_select_range_page');
+            $this->addStep($ref['type'], $ref['steps']);
+        }
+    }
+
+    /**
+     * Alternative handler for
+     * bni_parse_if_has_next_page_then_visit_transaction_next_page_prepend.
+     */
+    protected function bniParseIfHasNextPageThenVisitTransactionNextPagePrepend()
+    {
+        // cari link berikutnya
+        try {
+            $url_raw = $this->html->find('a#NextData')->attr('href');
+            if (null === $url_raw) {
+                throw new \Exception;
+            }
+            preg_match('/^javascript\:fnCallAJAX\(\'(.*)\'\)$/', $url_raw, $m);
+            if (empty($m) || !array_key_exists(1, $m)) {
+                throw new \Exception;
+            }
+            $url = $m[1];
+            $ref = $this->configuration('reference][transaction_next_page');
+            $this->addStep($ref['type'], $ref['steps']);
+            $this->configuration('menu][transaction_next_page][url', $url);
+        }
+        catch (\Exception $e) {
+            // Stop.
+        }
+    }
+
+    /**
+     * Alternative handler for: bni_parse_select_range_page_revisited
+     */
+    protected function bniParseSelectRangePageRevisited()
+    {
+        $next = array_shift($this->range);
+        $form = $this->html->find('form');
+        $url = $form->attr('action');
+        $fields = $form->preparePostForm('FullStmtInqRq');
+        $fields['TxnPeriod'] = '-1';
+        $fields['Search_Option'] = 'Date';
+        $fields['txnSrcFromDate'] = $next->format(self::BNI_DATE_FORMAT, 'start');
+        $fields['txnSrcToDate'] = $next->format(self::BNI_DATE_FORMAT, 'end');
+        $ref = $this->configuration('reference][revisit_select_range_form');
+        $this->addStep($ref['type'], $ref['steps']);
+        $this->configuration('menu][select_range_form][url', $url);
+        $this->configuration('menu][select_range_form][fields', $fields);
+
+    }
+
+    /**
+     * Mendapatkan array transaksi dengan format yang sudah rapih.
+     */
+    protected function bniFilterTransactionTable($tables)
+    {
+        $language = $this->configuration('language');
+        $language = null === $language ? 'id' : $language;
+
+        $transactions = [];
+        while (!empty($tables)) {
+            $table = array_shift($tables);
+
+            if (isset($table[0]) && isset($table[1])) {
+                $info = $language == 'id' ? $this->bniTranslate($table[0]) : $table[0];
+                $value = $table[1];
+                switch ($info) {
+                    case 'Transaction Date':
+                        $transaction = [];
+                        $transaction['date'] = $value;
+                        break;
+
+                    case 'Transaction Remarks':
+                        $transaction['detail'] = $value;
+                        break;
+
+                    case 'Amount type':
+                        $transaction['type'] = $value;
+                        break;
+
+                    case 'Amount':
+                        $transaction['amount'] = $value;
+                        break;
+
+                    case 'Account Balance':
+                        $transaction['balance'] = $value;
+                        $transactions[] = $transaction;
+                        break;
+                }
+            }
+        }
+        return $transactions;
+    }
+
+    /**
+     * Alternative handler for bni_transaction_finishing.
+     */
+    protected function bniTransactionFinishing()
+    {
+        $temporary_result = $this->configuration('temporary][result');
+        $this->configuration('temporary][result', null);
+
+        // Secara default, bni menggunakan sort secara desc.
+        switch ($this->sort) {
+            case 'desc':
+                break;
+
+            case 'asc':
+                krsort($temporary_result);
+                break;
+        }
+        if (null === $this->result) {
+            $this->result = [];
+        }
+        $this->result = array_merge($this->result, $temporary_result);
     }
 
     /**
@@ -656,7 +902,7 @@ class BNI extends AbstractWebCrawler implements ModuleInterface
     }
 
     /**
-     *
+     * Kamus.
      */
     protected function bniString()
     {
@@ -665,6 +911,7 @@ class BNI extends AbstractWebCrawler implements ModuleInterface
             'Uraian Transaksi' => 'Transaction Remarks',
             'Tipe' => 'Amount type',
             'Jumlah Pembayaran' => 'Amount',
+            'Nominal' => 'Amount',
             'Saldo' => 'Account Balance',
         ];
     }

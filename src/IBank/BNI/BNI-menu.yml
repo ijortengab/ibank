@@ -1,0 +1,56 @@
+# Menu Definitions.
+menu:
+  home_page:
+    url: https://ibank.bni.co.id
+    verify:
+      home_page_authenticated: bni_parse_home_page_authenticated
+      home_page_anonymous: bni_parse_home_page_anonymous
+      404_page: bni_parse_404_page
+      session_destroy: bni_parse_404_page
+  login_page:
+    verify:
+      home_page_anonymous: bni_parse_home_page_anonymous
+      form_exists: bni_parse_login_page
+  login_form:
+    verify:
+      home_page_authenticated: bni_parse_home_page_authenticated
+      login_error: bni_parse_login_form_error
+  account_page:
+    verify:
+      table_account: bni_parse_account_page
+  balance_inquiry_page:
+    verify:
+      form_exists: bni_parse_account_type_form
+  account_type_form:
+    verify:
+      select_range_page: bni_parse_select_range_page
+      form_exists: bni_parse_account_number_form
+  account_number_form:
+    verify:
+      404_page: reset_execute
+      table_balance: bni_parse_balance_inquiry_page
+      mini_statement_page: bni_parse_mini_statement_page
+  transaction_history_page:
+    verify:
+      form_exists: bni_parse_account_type_form
+  mini_statement_page:
+    verify:
+      mini_statement_select_account_number: bni_parse_account_number_form
+  select_range_form:
+    verify:
+      table_transaction_page:
+        - bni_parse_transaction_page
+        - bni_parse_if_over_range_then_save_select_range_page_location
+        # Looping dilakukan pada handler ini.
+        - bni_parse_if_has_next_page_then_visit_transaction_next_page_prepend
+        - bni_parse_if_over_range_then_visit_select_range_page_append
+      select_range_error: bni_parse_select_range_error
+  transaction_next_page:
+    verify:
+      table_transaction_page:
+        - bni_parse_transaction_page
+        # Looping dilakukan pada handler ini.
+        - bni_parse_if_has_next_page_then_visit_transaction_next_page_prepend
+  select_range_page:
+    verify:
+      select_range_page: bni_parse_select_range_page_revisited
