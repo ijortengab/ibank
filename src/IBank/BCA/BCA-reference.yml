@@ -1,0 +1,16 @@
+# Reference
+reference:
+  login_form:
+    description: 'Menuju home_page dari context anonymous ke authenticated.'
+    position: prepend
+    steps:
+      - handler: visit
+        menu: login_form
+        visit_after: verify
+  home_page:
+    description: ''
+    position: prepend
+    steps:
+      - handler: visit
+        menu: home_page
+        visit_after: verify

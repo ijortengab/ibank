@@ -2,15 +2,15 @@
 
 namespace IjorTengab\IBank\BNI;
 
+use IjorTengab\Mission\AbstractWebCrawler;
 use IjorTengab\ActionWrapper\ModuleInterface;
-use IjorTengab\WebCrawler\AbstractWebCrawler;
-use IjorTengab\WebCrawler\WebCrawlerTrait;
-use IjorTengab\WebCrawler\VisitException;
-use IjorTengab\WebCrawler\ExecuteException;
 use IjorTengab\IBank\WebCrawlerModuleTrait;
 use IjorTengab\DateTime\Range;
 use Symfony\Component\Yaml\Parser;
 use Symfony\Component\Yaml\Exception\ParseException;
+use IjorTengab\Mission\Exception\ExecuteException;
+use IjorTengab\Mission\Exception\StepException;
+use IjorTengab\Mission\Exception\VisitException;
 
 
 /**
@@ -263,10 +263,11 @@ class BNI extends AbstractWebCrawler implements ModuleInterface
      */
     protected function visitAfter()
     {
+        parent::visitAfter();
         // Hapus url, agar tidak tersimpan di configuration.
         // Karena url bersifat dinamis.
         $menu_name = $this->step['menu'];
-        $this->configuration('menu][' . $menu_name . '][url', null);
+        $this->configuration("menu][$menu_name][url", null);
     }
 
     /**
@@ -357,9 +358,7 @@ class BNI extends AbstractWebCrawler implements ModuleInterface
             // Apapun targetnya, aktivitasnya sama.
             default:
                 // Belum login, maka tambah langkah baru.
-                $ref = $this->configuration('reference][home_page');
-
-                $this->addStep($ref['type'], $ref['steps']);
+                $this->addStepFromReference('home_page');
 
                 // Cari tahu bahasa situs, penting untuk parsing yang
                 // terkait bahasa.
@@ -565,9 +564,7 @@ class BNI extends AbstractWebCrawler implements ModuleInterface
                     throw new VisitException;
                 }
                 $this->configuration('menu][login_page][url', $url);
-
-                $ref = $this->configuration('reference][404_page');
-                $this->addStep($ref['type'], $ref['steps']);
+                $this->addStepFromReference('404_page');
                 break;
         }
     }
@@ -776,8 +773,7 @@ class BNI extends AbstractWebCrawler implements ModuleInterface
     {
         $is_over_range = $this->configuration('temporary][over_range');
         if ($is_over_range) {
-            $ref = $this->configuration('reference][revisit_select_range_page');
-            $this->addStep($ref['type'], $ref['steps']);
+            $this->addStepFromReference('revisit_select_range_page');
         }
     }
 
@@ -798,8 +794,7 @@ class BNI extends AbstractWebCrawler implements ModuleInterface
                 throw new \Exception;
             }
             $url = $m[1];
-            $ref = $this->configuration('reference][transaction_next_page');
-            $this->addStep($ref['type'], $ref['steps']);
+            $this->addStepFromReference('transaction_next_page');
             $this->configuration('menu][transaction_next_page][url', $url);
         }
         catch (\Exception $e) {
@@ -820,8 +815,7 @@ class BNI extends AbstractWebCrawler implements ModuleInterface
         $fields['Search_Option'] = 'Date';
         $fields['txnSrcFromDate'] = $next->format(self::BNI_DATE_FORMAT, 'start');
         $fields['txnSrcToDate'] = $next->format(self::BNI_DATE_FORMAT, 'end');
-        $ref = $this->configuration('reference][revisit_select_range_form');
-        $this->addStep($ref['type'], $ref['steps']);
+        $this->addStepFromReference('revisit_select_range_form');
         $this->configuration('menu][select_range_form][url', $url);
         $this->configuration('menu][select_range_form][fields', $fields);
 
