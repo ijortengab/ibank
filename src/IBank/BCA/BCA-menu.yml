@@ -8,14 +8,25 @@ menu:
     url: https://ibank.klikbca.com/authentication.do
     verify:
       home_page_authenticated: bca_parse_home_page_authenticated
+      home_page_anonymous: bca_error_login
   balance_inquiry_page:
     url: https://ibank.klikbca.com/balanceinquiry.do
     referer: https://ibank.klikbca.com/{language}/account_information_menu.htm
     verify:
       table_exists: bca_parse_balance_inquiry_page
       redirect_to_main: bca_parse_redirect_to_main
-  select_range_page:
+  account_statement_page:
     url: https://ibank.klikbca.com/accountstmt.do?value(actions)=acct_stmt
     referer: https://ibank.klikbca.com/{language}/account_information_menu.htm
     verify:
       select_range_form: bca_parse_select_range_form
+      redirect_to_main: bca_parse_redirect_to_main
+  account_statement_page_view:
+    url: https://ibank.klikbca.com/accountstmt.do?value(actions)=acctstmtview
+    verify:
+      table_transaction_page:
+        - bca_parse_transaction_page
+        - bca_check_over_range
+  logout:
+    url: https://ibank.klikbca.com/authentication.do?value(actions)=logout
+    referer: https://ibank.klikbca.com/top.htm

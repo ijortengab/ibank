@@ -29,4 +29,23 @@ final class IBank extends Action
         // Return to parent.
         return parent::__callStatic($name, $arguments);
     }
+
+    // Referensi bersama untuk mutasi rekening.
+    public static function reference($name)
+    {
+        switch ($name) {
+            case 'table_header_account_statement':
+                $return = [
+                    'no',
+                    'id',
+                    'date',
+                    'description',
+                    'type',
+                    'amount',
+                    'balance',
+                ];
+                break;
+        }
+        return $return;
+    }
 }

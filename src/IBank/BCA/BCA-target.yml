@@ -10,10 +10,19 @@ target:
       visit_after: verify
   get_transaction:
     - handler: visit
-      menu: home_page
+      handler_before: bca_check_session
+      menu: account_statement_page
+      visit_before:
+        - bca_set_referer
+        - bca_method_post
       visit_after: verify
     - handler: visit
-      menu: select_range_page
+      menu: account_statement_page_view
       visit_after: verify
-
-
+  logout:
+    - handler: visit
+      menu: logout
+      visit_before:
+        - bca_set_referer
+        - bca_method_post
+    - handler: bca_clear_last_visit

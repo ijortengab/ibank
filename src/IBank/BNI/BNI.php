@@ -2,6 +2,7 @@
 
 namespace IjorTengab\IBank\BNI;
 
+use IjorTengab\IBank\IBank;
 use IjorTengab\Mission\AbstractWebCrawler;
 use IjorTengab\ActionWrapper\ModuleInterface;
 use IjorTengab\IBank\WebCrawlerModuleTrait;
@@ -24,7 +25,7 @@ use IjorTengab\Mission\Exception\VisitException;
  */
 class BNI extends AbstractWebCrawler implements ModuleInterface
 {
-    use WebCrawlerModuleTrait, WebCrawlerTrait;
+    use WebCrawlerModuleTrait;
 
     const BNI_MAIN_URL = 'https://ibank.bni.co.id';
     const BNI_DATE_FORMAT = 'd-M-Y';
@@ -133,6 +134,7 @@ class BNI extends AbstractWebCrawler implements ModuleInterface
      */
     protected function executeBefore()
     {
+        parent::executeBefore();
         if (null === $this->username) {
             $this->log->error('Username belum didefinisikan.');
             throw new ExecuteException;
@@ -178,22 +180,16 @@ class BNI extends AbstractWebCrawler implements ModuleInterface
                         // Masih kudu dikurangi satu hari lagi agar tidak
                         // error (lihat catatan pada doc comment fungsi ini).
                         $oldest->sub(new \DateInterval('P1D'));
-                        if (!$this->range->comparison($oldest, 'less', 'start')) {
-                            // Tapi kalo masih di hari yang sama, ya gpp.
-                            if (!$this->range->isSameDay($oldest, 'start')) {
-                                $this->log->error('Tanggal Awal tidak boleh melebihi 6 Bulan dari Tanggal Hari Ini.');
-                                throw new ExecuteException;
-                            }
+                        if (!$this->range->isSameDay($oldest, 'start') && !$this->range->comparison($oldest, 'less', 'start')) {
+                            $this->log->error('Tanggal Awal tidak boleh kurang dari 6 bulan lalu: {date}', ['date' => $oldest->format('Y-m-d')]);
+                            throw new ExecuteException;
                         }
 
                         // End date tidak boleh lewat dari hari ini.
                         $now = new \DateTime();
-                        if (!$this->range->comparison($now, 'greater', 'end')) {
-                            // Tapi kalo masih di hari yang sama, ya gpp.
-                            if (!$this->range->isSameDay($now, 'end')) {
-                                $this->log->error('Tanggal Akhir tidak boleh melebihi Tanggal Hari Ini.');
-                                throw new ExecuteException;
-                            }
+                        if (!$this->range->isSameDay($now, 'end') && !$this->range->comparison($now, 'greater', 'end')) {
+                            $this->log->error('Tanggal Akhir tidak boleh melebihi Tanggal Hari Ini.');
+                            throw new ExecuteException;
                         }
                 }
 
@@ -229,6 +225,7 @@ class BNI extends AbstractWebCrawler implements ModuleInterface
 
     protected function executeAfter()
     {
+        parent::executeAfter();
         // Memastikan bahwa url home sudah ada pada configuration.
         $url = $this->configuration('menu][home_page][url');
         if (null === $url && null !== $this->html) {
@@ -263,11 +260,13 @@ class BNI extends AbstractWebCrawler implements ModuleInterface
      */
     protected function visitAfter()
     {
-        parent::visitAfter();
+        // Untuk semua visit.
         // Hapus url, agar tidak tersimpan di configuration.
         // Karena url bersifat dinamis.
         $menu_name = $this->step['menu'];
         $this->configuration("menu][$menu_name][url", null);
+        // Baru jalankan parent.
+        parent::visitAfter();
     }
 
     /**
@@ -767,18 +766,6 @@ class BNI extends AbstractWebCrawler implements ModuleInterface
 
     /**
      * Alternative handler for
-     * bni_parse_if_over_range_then_visit_select_range_page_append.
-     */
-    protected function bniParseIfOverRangeThenVisitSelectRangePageAppend()
-    {
-        $is_over_range = $this->configuration('temporary][over_range');
-        if ($is_over_range) {
-            $this->addStepFromReference('revisit_select_range_page');
-        }
-    }
-
-    /**
-     * Alternative handler for
      * bni_parse_if_has_next_page_then_visit_transaction_next_page_prepend.
      */
     protected function bniParseIfHasNextPageThenVisitTransactionNextPagePrepend()
@@ -799,6 +786,18 @@ class BNI extends AbstractWebCrawler implements ModuleInterface
         }
         catch (\Exception $e) {
             // Stop.
+        }
+    }
+
+    /**
+     * Alternative handler for
+     * bni_parse_if_over_range_then_visit_select_range_page_append.
+     */
+    protected function bniParseIfOverRangeThenVisitSelectRangePageAppend()
+    {
+        $is_over_range = $this->configuration('temporary][over_range');
+        if ($is_over_range) {
+            $this->addStepFromReference('revisit_select_range_page');
         }
     }
 
@@ -826,6 +825,9 @@ class BNI extends AbstractWebCrawler implements ModuleInterface
      */
     protected function bniFilterTransactionTable($tables)
     {
+        $ref = IBank::reference('table_header_account_statement');
+        $ref = array_flip($ref);
+
         $language = $this->configuration('language');
         $language = null === $language ? 'id' : $language;
 
@@ -838,7 +840,7 @@ class BNI extends AbstractWebCrawler implements ModuleInterface
                 $value = $table[1];
                 switch ($info) {
                     case 'Transaction Date':
-                        $transaction = [];
+                        $transaction = ['no' => null, 'id' => null];
                         $transaction['date'] = $value;
                         break;
 
@@ -856,7 +858,7 @@ class BNI extends AbstractWebCrawler implements ModuleInterface
 
                     case 'Account Balance':
                         $transaction['balance'] = $value;
-                        $transactions[] = $transaction;
+                        $transactions[] = array_merge($ref, $transaction);
                         break;
                 }
             }
