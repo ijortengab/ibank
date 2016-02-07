@@ -5,14 +5,14 @@ reference:
     position: prepend
     steps:
       - handler: visit
-        menu: login_form
+        menu: bca_login_form
         visit_after: verify
   home_page:
     description: ''
     position: prepend
     steps:
       - handler: visit
-        menu: home_page
+        menu: bca_home_page
         visit_after: verify
 
   revisit_account_statement_page:
@@ -20,13 +20,13 @@ reference:
     position: prepend
     steps:
       - handler: visit
-        menu: account_statement_page
+        menu: bca_account_statement_page
         visit_before:
           - bca_set_referer
           - bca_method_post
         visit_after: verify
       - handler: visit
-        menu: account_statement_page_view
+        menu: bca_account_statement_page_view
         visit_after: verify
   transaction_finishing:
     description: ''

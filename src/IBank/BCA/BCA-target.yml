@@ -3,7 +3,7 @@ target:
   get_balance:
     - handler: visit
       handler_before: bca_check_session
-      menu: balance_inquiry_page
+      menu: bca_balance_inquiry_page
       visit_before:
         - bca_set_referer
         - bca_method_post
@@ -11,17 +11,17 @@ target:
   get_transaction:
     - handler: visit
       handler_before: bca_check_session
-      menu: account_statement_page
+      menu: bca_account_statement_page
       visit_before:
         - bca_set_referer
         - bca_method_post
       visit_after: verify
     - handler: visit
-      menu: account_statement_page_view
+      menu: bca_account_statement_page_view
       visit_after: verify
   logout:
     - handler: visit
-      menu: logout
+      menu: bca_logout
       visit_before:
         - bca_set_referer
         - bca_method_post

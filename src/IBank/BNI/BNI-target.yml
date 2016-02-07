@@ -2,48 +2,50 @@
 target:
   get_balance:
     - handler: visit
-      menu: home_page
+      menu: bni_home_page
       visit_after: verify
     - handler: visit
-      menu: account_page
+      menu: bni_account_page
       visit_after: verify
     - handler: visit
-      menu: balance_inquiry_page
+      menu: bni_balance_inquiry_page
       visit_after: verify
     - handler: visit
-      menu: account_type_form
+      menu: bni_account_type_form
       visit_after: verify
     - handler: visit
-      menu: account_number_form
+      menu: bni_account_number_form
       visit_after: verify
+  get_transaction:
+    - handler: bni_check_range
   get_last_transaction:
     - handler: visit
-      menu: home_page
+      menu: bni_home_page
       visit_after: verify
     - handler: visit
-      menu: account_page
+      menu: bni_account_page
       visit_after: verify
     - handler: visit
-      menu: mini_statement_page
+      menu: bni_mini_statement_page
       visit_after: verify
     - handler: visit
-      menu: account_number_form
+      menu: bni_account_number_form
       visit_after: verify
   get_range_transaction:
     - handler: visit
-      menu: home_page
+      menu: bni_home_page
       visit_after: verify
     - handler: visit
-      menu: account_page
+      menu: bni_account_page
       visit_after: verify
     - handler: visit
-      menu: transaction_history_page
+      menu: bni_transaction_history_page
       visit_after: verify
     - handler: visit
-      menu: account_type_form
+      menu: bni_account_type_form
       visit_after: verify
     - handler: visit
-      menu: select_range_form
+      menu: bni_select_range_form
       visit_after: verify
     - handler: bni_transaction_finishing
   test:

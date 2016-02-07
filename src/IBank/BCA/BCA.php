@@ -108,20 +108,28 @@ class BCA extends AbstractWebCrawler implements ModuleInterface
     protected function executeBefore()
     {
         parent::executeBefore();
+        switch ($this->target) {
+            case 'logout':
+                break;
 
-        if (null === $this->username) {
-            $this->log->error('Username belum didefinisikan.');
-            throw new ExecuteException;
-        }
-        if (null === $this->password) {
-            $this->log->error('Password belum didefinisikan.');
-            throw new ExecuteException;
+            default:
+                if (null === $this->username) {
+                    $this->log->error('Username belum didefinisikan.');
+                    throw new ExecuteException;
+                }
+                if (null === $this->password) {
+                    $this->log->error('Password belum didefinisikan.');
+                    throw new ExecuteException;
+                }
+                break;
         }
         switch ($this->target) {
             case 'get_transaction':
                 if (null === $this->range) {
-                    $this->log->error('Range belum didefinisikan.');
-                    throw new ExecuteException;
+                    // BCA tidak ada mini account statement seperti BNI, maka
+                    // jika null kita anggap saja today.
+                    $this->range = 'today';
+                    $this->log->notice('Range belum didefinisikan, otomatis mencari transaksi hari ini.');
                 }
                 $this->range = Range::create($this->range);
                 // BCA paling lama adalah awal bulan dari 2 bulan lalu.
@@ -143,9 +151,6 @@ class BCA extends AbstractWebCrawler implements ModuleInterface
                         throw new ExecuteException;
                     }
                 }
-
-
-
                 switch ($this->sort) {
                     case 'asc':
                     case 'desc':
@@ -232,6 +237,7 @@ class BCA extends AbstractWebCrawler implements ModuleInterface
 
     protected function visitAfter()
     {
+        $this->configuration('bca_last_visit', date('c'));
         parent::visitAfter();
     }
 
@@ -246,7 +252,7 @@ class BCA extends AbstractWebCrawler implements ModuleInterface
         // Menggunakan try catch, karena pembentukan object DateTime kalau gagal
         // akan throw Exception.
         try {
-            $last_visit = $this->configuration('last_visit');
+            $last_visit = $this->configuration('bca_last_visit');
             if ($last_visit === null) {
                 throw new \Exception;
             }
@@ -273,7 +279,7 @@ class BCA extends AbstractWebCrawler implements ModuleInterface
     protected function bcaSetReferer()
     {
         $menu_name = $this->step['menu'];
-        $referer = $this->configuration("menu][$menu_name][referer");
+        $referer = $this->configuration("menu][bca_$menu_name][referer");
         if (empty($referer)) {
             return;
         }
@@ -314,7 +320,7 @@ class BCA extends AbstractWebCrawler implements ModuleInterface
                 $fields['value(user_id)'] = $this->username;
                 $fields['value(pswd)'] = $this->password;
                 $this->addStepFromReference('login_form');
-                $this->configuration('menu][login_form][fields', $fields);
+                $this->configuration('menu][bca_login_form][fields', $fields);
                 break;
         }
     }
@@ -491,7 +497,7 @@ class BCA extends AbstractWebCrawler implements ModuleInterface
                 break;
         }
         // Set ke menu.
-        $this->configuration("menu][account_statement_page_view][fields", $fields);
+        $this->configuration("menu][bca_account_statement_page_view][fields", $fields);
 
 
     }
@@ -500,7 +506,7 @@ class BCA extends AbstractWebCrawler implements ModuleInterface
     {
         switch ($this->target) {
             default:
-                $this->configuration('last_visit', null);
+                $this->configuration('bca_last_visit', null);
                 $this->resetExecute();
                 $this->addStepFromReference('home_page');
                 break;
@@ -638,12 +644,14 @@ class BCA extends AbstractWebCrawler implements ModuleInterface
         // Hasil BCA selalu ascending.
         if ($this->sort == 'desc') {
             krsort($this->result);
+            $this->result = array_values($this->result);
         }
     }
 
     protected function bcaClearLastVisit()
     {
-        $this->configuration('last_visit', null);
+        $this->configuration('bca_last_visit', null);
+        $this->result = 'Logout Success';
     }
 
     protected function bcaFilterTransaction()
@@ -667,8 +675,8 @@ class BCA extends AbstractWebCrawler implements ModuleInterface
      * - 12/01
      *   artinya 12 januari tahun ini.
      * - PEND
-     *   artinya **mungkin** tanggal hari ini, karena ini muncul
-     *   pada transaksi yang baru saja terjadi.
+     *   artinya **mungkin** tanggal hari ini, mungkin kemarin, karena ini
+     *   muncul pada transaksi yang baru saja terjadi.
      */
     protected function bcaConvertDateTransaction($string)
     {
@@ -676,6 +684,9 @@ class BCA extends AbstractWebCrawler implements ModuleInterface
         if (false === $parse) {
             $this->log->error('Gagal mengenali date: {name}', ['name' => $string]);
             throw new VisitException;
+        }
+        if ('' === $parse) {
+            return '';
         }
         list($d, $m) = $parse;
         $is_over_range = $this->configuration('temporary][over_range');
@@ -700,7 +711,7 @@ class BCA extends AbstractWebCrawler implements ModuleInterface
         $result = false;
         $string = trim($string);
         if ($string === 'PEND') {
-            $result = array(date('d'), date('m')); // d = 01~31, m = 01~12
+            $result = '';
         }
         elseif (preg_match('/^(\d{1,2})\/(\d{1,2})$/', $string, $m)) {
             // Perlu valid date.

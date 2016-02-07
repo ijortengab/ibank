@@ -4,14 +4,14 @@ namespace IjorTengab\IBank\BNI;
 
 use IjorTengab\IBank\IBank;
 use IjorTengab\Mission\AbstractWebCrawler;
+use IjorTengab\Mission\Exception\ExecuteException;
+use IjorTengab\Mission\Exception\StepException;
+use IjorTengab\Mission\Exception\VisitException;
 use IjorTengab\ActionWrapper\ModuleInterface;
 use IjorTengab\IBank\WebCrawlerModuleTrait;
 use IjorTengab\DateTime\Range;
 use Symfony\Component\Yaml\Parser;
 use Symfony\Component\Yaml\Exception\ParseException;
-use IjorTengab\Mission\Exception\ExecuteException;
-use IjorTengab\Mission\Exception\StepException;
-use IjorTengab\Mission\Exception\VisitException;
 
 
 /**
@@ -144,15 +144,6 @@ class BNI extends AbstractWebCrawler implements ModuleInterface
             throw new ExecuteException;
         }
         switch ($this->target) {
-            case 'get_balance':
-                break;
-
-            case 'get_transaction':
-                break;
-
-            case 'get_last_transaction':
-                break;
-
             case 'get_range_transaction':
                 if (null === $this->range) {
                     $this->log->error('Range belum didefinisikan.');
@@ -193,6 +184,7 @@ class BNI extends AbstractWebCrawler implements ModuleInterface
                         }
                 }
 
+            case 'get_last_transaction':
                 switch ($this->sort) {
                     case 'asc':
                     case 'desc':
@@ -221,19 +213,24 @@ class BNI extends AbstractWebCrawler implements ModuleInterface
                 // Do something.
                 break;
         }
+
+
+        switch ($this->target) {
+
+        }
     }
 
     protected function executeAfter()
     {
         parent::executeAfter();
         // Memastikan bahwa url home sudah ada pada configuration.
-        $url = $this->configuration('menu][home_page][url');
+        $url = $this->configuration('menu][bni_home_page][url');
         if (null === $url && null !== $this->html) {
             $form = $this->html->find('form');
             $url = $form->attr('action');
             $fields = $form->preparePostForm('__HOME__');
-            $this->configuration('menu][home_page][url', $url);
-            $this->configuration('menu][home_page][fields', $fields);
+            $this->configuration('menu][bni_home_page][url', $url);
+            $this->configuration('menu][bni_home_page][fields', $fields);
         }
     }
 
@@ -260,6 +257,7 @@ class BNI extends AbstractWebCrawler implements ModuleInterface
      */
     protected function visitAfter()
     {
+        $this->configuration('bni_last_visit', date('c'));
         // Untuk semua visit.
         // Hapus url, agar tidak tersimpan di configuration.
         // Karena url bersifat dinamis.
@@ -274,7 +272,7 @@ class BNI extends AbstractWebCrawler implements ModuleInterface
      */
     protected function resetExecuteAfter()
     {
-        $this->configuration('menu][home_page][url', self::BNI_MAIN_URL);
+        $this->configuration('menu][bni_home_page][url', self::BNI_MAIN_URL);
     }
 
     /**
@@ -341,7 +339,7 @@ class BNI extends AbstractWebCrawler implements ModuleInterface
                     $this->log->error('Url for menu "account_page" not found.');
                     throw new VisitException;
                 }
-                $this->configuration('menu][account_page][url', $url_account_page);
+                $this->configuration('menu][bni_account_page][url', $url_account_page);
                 break;
         }
     }
@@ -374,7 +372,7 @@ class BNI extends AbstractWebCrawler implements ModuleInterface
                     $this->log->error('Url for menu login_page not found.');
                     throw new VisitException;
                 }
-                $this->configuration('menu][login_page][url', $url_login_page);
+                $this->configuration('menu][bni_login_page][url', $url_login_page);
                 break;
         }
     }
@@ -402,8 +400,8 @@ class BNI extends AbstractWebCrawler implements ModuleInterface
                 $fields['__AUTHENTICATE__'] = 'Login';
                 $fields['CorpId'] = $this->username;
                 $fields['PassWord'] = $this->password;
-                $this->configuration('menu][login_form][url', $url);
-                $this->configuration('menu][login_form][fields', $fields);
+                $this->configuration('menu][bni_login_form][url', $url);
+                $this->configuration('menu][bni_login_form][fields', $fields);
                 break;
         }
     }
@@ -422,7 +420,7 @@ class BNI extends AbstractWebCrawler implements ModuleInterface
                     $this->log->error('Url for menu "balance_inquiry_page" not found.');
                     throw new VisitException;
                 }
-                $this->configuration('menu][balance_inquiry_page][url', $url_balance_inquiry_page);
+                $this->configuration('menu][bni_balance_inquiry_page][url', $url_balance_inquiry_page);
                 break;
 
             case 'get_last_transaction':
@@ -431,7 +429,7 @@ class BNI extends AbstractWebCrawler implements ModuleInterface
                     $this->log->error('Url for menu "mini_statement_page" not found.');
                     throw new VisitException;
                 }
-                $this->configuration('menu][mini_statement_page][url', $url_mini_statement_page);
+                $this->configuration('menu][bni_mini_statement_page][url', $url_mini_statement_page);
                 break;
 
             case 'get_range_transaction':
@@ -440,7 +438,7 @@ class BNI extends AbstractWebCrawler implements ModuleInterface
                     $this->log->error('Url for menu "transaction_history_page" not found.');
                     throw new VisitException;
                 }
-                $this->configuration('menu][transaction_history_page][url', $url_transaction_history_page);
+                $this->configuration('menu][bni_transaction_history_page][url', $url_transaction_history_page);
                 break;
         }
     }
@@ -465,8 +463,8 @@ class BNI extends AbstractWebCrawler implements ModuleInterface
                 $fields = $form->preparePostForm('AccountIDSelectRq');
                 //
                 $fields['MAIN_ACCOUNT_TYPE'] = $this->account_type;
-                $this->configuration('menu][account_type_form][url', $url);
-                $this->configuration('menu][account_type_form][fields', $fields);
+                $this->configuration('menu][bni_account_type_form][url', $url);
+                $this->configuration('menu][bni_account_type_form][fields', $fields);
                 break;
         }
     }
@@ -489,8 +487,8 @@ class BNI extends AbstractWebCrawler implements ModuleInterface
                 $fields = $form->preparePostForm('BalInqRq');
                 // Todo, support multi account number.
                 // $fields['acc1'] = '';
-                $this->configuration('menu][account_number_form][url', $url);
-                $this->configuration('menu][account_number_form][fields', $fields);
+                $this->configuration('menu][bni_account_number_form][url', $url);
+                $this->configuration('menu][bni_account_number_form][fields', $fields);
                 break;
 
             case 'get_last_transaction':
@@ -509,8 +507,8 @@ class BNI extends AbstractWebCrawler implements ModuleInterface
                     }
                 }
                 $fields['MiniStmt'] = $value;
-                $this->configuration('menu][account_number_form][url', $url);
-                $this->configuration('menu][account_number_form][fields', $fields);
+                $this->configuration('menu][bni_account_number_form][url', $url);
+                $this->configuration('menu][bni_account_number_form][fields', $fields);
                 break;
         }
     }
@@ -542,8 +540,8 @@ class BNI extends AbstractWebCrawler implements ModuleInterface
         $form = $this->html->find('form');
         $url = $form->attr('action');
         $fields = $form->preparePostForm('__HOME__');
-        $this->configuration('menu][home_page][url', $url);
-        $this->configuration('menu][home_page][fields', $fields);
+        $this->configuration('menu][bni_home_page][url', $url);
+        $this->configuration('menu][bni_home_page][fields', $fields);
     }
 
     /**
@@ -562,7 +560,7 @@ class BNI extends AbstractWebCrawler implements ModuleInterface
                     $this->log->error('Url for menu "login_page" not found.');
                     throw new VisitException;
                 }
-                $this->configuration('menu][login_page][url', $url);
+                $this->configuration('menu][bni_login_page][url', $url);
                 $this->addStepFromReference('404_page');
                 break;
         }
@@ -635,6 +633,11 @@ class BNI extends AbstractWebCrawler implements ModuleInterface
                         }
                     }
                 }
+                // Sort.
+                if ($this->sort == 'asc') {
+                    krsort($transactions);
+                    $transactions = array_values($transactions);
+                }
                 // Set to result.
                 $this->result = $transactions;
 
@@ -642,7 +645,7 @@ class BNI extends AbstractWebCrawler implements ModuleInterface
                 $this->bniSaveUrlHomePage();
                 // Tapi ada yang perlu diedit, karena isian pilih rekening
                 // ternyata element select sehingga perlu kita ganti.
-                $fields = $this->configuration('menu][home_page][fields');
+                $fields = $this->configuration('menu][bni_home_page][fields');
                 $value = null;
                 foreach ($fields['MiniStmt'] as $number) {
                     if (strpos($number, $this->account) !== false) {
@@ -650,7 +653,7 @@ class BNI extends AbstractWebCrawler implements ModuleInterface
                     }
                 }
                 $fields['MiniStmt'] = $value;
-                $this->configuration('menu][home_page][fields', $fields);
+                $this->configuration('menu][bni_home_page][fields', $fields);
                 break;
         }
     }
@@ -712,8 +715,8 @@ class BNI extends AbstractWebCrawler implements ModuleInterface
                         }
                         break;
                 }
-                $this->configuration('menu][select_range_form][url', $url);
-                $this->configuration('menu][select_range_form][fields', $fields);
+                $this->configuration('menu][bni_select_range_form][url', $url);
+                $this->configuration('menu][bni_select_range_form][fields', $fields);
                 break;
         }
     }
@@ -759,8 +762,8 @@ class BNI extends AbstractWebCrawler implements ModuleInterface
             $url = $form->attr('action');
 
             $fields = $form->preparePostForm('__BACK__');
-            $this->configuration('menu][select_range_page][url', $url);
-            $this->configuration('menu][select_range_page][fields', $fields);
+            $this->configuration('menu][bni_select_range_page][url', $url);
+            $this->configuration('menu][bni_select_range_page][fields', $fields);
         }
     }
 
@@ -782,7 +785,7 @@ class BNI extends AbstractWebCrawler implements ModuleInterface
             }
             $url = $m[1];
             $this->addStepFromReference('transaction_next_page');
-            $this->configuration('menu][transaction_next_page][url', $url);
+            $this->configuration('menu][bni_transaction_next_page][url', $url);
         }
         catch (\Exception $e) {
             // Stop.
@@ -815,8 +818,8 @@ class BNI extends AbstractWebCrawler implements ModuleInterface
         $fields['txnSrcFromDate'] = $next->format(self::BNI_DATE_FORMAT, 'start');
         $fields['txnSrcToDate'] = $next->format(self::BNI_DATE_FORMAT, 'end');
         $this->addStepFromReference('revisit_select_range_form');
-        $this->configuration('menu][select_range_form][url', $url);
-        $this->configuration('menu][select_range_form][fields', $fields);
+        $this->configuration('menu][bni_select_range_form][url', $url);
+        $this->configuration('menu][bni_select_range_form][fields', $fields);
 
     }
 
@@ -911,4 +914,20 @@ class BNI extends AbstractWebCrawler implements ModuleInterface
             'Saldo' => 'Account Balance',
         ];
     }
+
+    protected function bniCheckRange()
+    {
+        if (null === $this->range) {
+            $this->changeTarget('get_last_transaction');
+        }
+        else {
+            $this->changeTarget('get_range_transaction');
+        }
+    }
+
+
+
+
+
+
 }

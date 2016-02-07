@@ -5,31 +5,31 @@ reference:
     position: prepend
     steps:
       - handler: visit
-        menu: login_page
+        menu: bni_login_page
         visit_after: verify
       - handler: visit
-        menu: login_form
+        menu: bni_login_form
         visit_after: verify
   404_page:
     description: 'Dari page 404 menuju home_page.'
     position: prepend
     steps:
       - handler: visit
-        menu: login_page
+        menu: bni_login_page
         visit_after: verify
   transaction_next_page:
     description: 'Next Page dari halaman transaction history.'
     position: prepend
     steps:
       - handler: visit
-        menu: transaction_next_page
+        menu: bni_transaction_next_page
         visit_after: verify
   revisit_select_range_page:
     description: 'Kembali ke halaman select_range_page untuk mengulang pencarian pada bulan berikutnya.'
     position: append
     steps:
       - handler: visit
-        menu: select_range_page
+        menu: bni_select_range_page
         visit_after: verify
       - handler: bni_transaction_finishing
   revisit_select_range_form:
@@ -37,7 +37,7 @@ reference:
     position: prepend
     steps:
       - handler: visit
-        menu: select_range_form
+        menu: bni_select_range_form
         visit_after: verify
   transaction_finishing:
     description: ''

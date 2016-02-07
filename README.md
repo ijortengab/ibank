@@ -41,3 +41,13 @@ Todo
 
 Todo
 
+
+## Variable $information
+
+- $information['username']  
+  Username untuk login ke internet banking, digunakan pada seluruh bank.  
+- $information['password']  
+  password untuk login ke internet banking, digunakan pada seluruh bank.  
+  
+
+
