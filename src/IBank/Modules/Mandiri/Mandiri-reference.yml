@@ -1,0 +1,40 @@
+# Reference
+reference:
+  # login_form:
+    # description: 'Menuju home_page dari context anonymous ke authenticated.'
+    # position: prepend
+    # steps:
+      # - handler: visit
+        # menu: bca_login_form
+        # visit_after: verify
+  # home_page:
+    # description: ''
+    # position: prepend
+    # steps:
+      # - handler: visit
+        # menu: bca_home_page
+        # visit_after: verify
+
+  # revisit_account_statement_page:
+    # description: ''
+    # position: prepend
+    # steps:
+      # - handler: visit
+        # menu: bca_account_statement_page
+        # visit_before:
+          # - bca_set_referer
+          # - bca_method_post
+        # visit_after: verify
+      # - handler: visit
+        # menu: bca_account_statement_page_view
+        # visit_after: verify
+  # transaction_finishing:
+    # description: ''
+    # position: append
+    # steps:
+      # - handler: bca_transaction_finishing
+  # filter_transaction:
+    # description: ''
+    # position: append
+    # steps:
+      # - handler: bca_filter_transaction

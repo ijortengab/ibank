@@ -1,6 +1,6 @@
 <?php
 
-namespace IjorTengab\IBank\BCA;
+namespace IjorTengab\IBank\Modules\BCA;
 
 use IjorTengab\IBank\IBank;
 use IjorTengab\Mission\AbstractWebCrawler;
@@ -22,7 +22,8 @@ use IjorTengab\Mission\Exception\VisitException;
  *
  * @link
  *   http://www.bni.co.id/
- *   https://ibank.bni.co.id
+ *   http://www.klikbca.com/
+ *   https://ibank.klikbca.com/
  */
 class BCA extends AbstractWebCrawler implements ModuleInterface
 {
@@ -315,7 +316,7 @@ class BCA extends AbstractWebCrawler implements ModuleInterface
         switch ($this->target) {
             default:
                 $form = $this->configuration('temporary][form');
-                $fields = $this->html->preparePostForm('value(Submit)');
+                $fields = $form->preparePostForm('value(Submit)');
                 unset($fields['txtUserId']);
                 $fields['value(user_id)'] = $this->username;
                 $fields['value(pswd)'] = $this->password;

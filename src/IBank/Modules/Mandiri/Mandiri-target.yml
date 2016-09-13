@@ -1,0 +1,30 @@
+# Target Definitions.
+target:
+  get_balance:
+    - handler: visit
+      # handler_before: bca_check_session
+      menu: mandiri_home_page
+      # visit_before:
+        # - bca_set_referer
+        # - bca_method_post
+      visit_after: verify
+    - handler: visit
+      menu : mandiri_login_form
+  # get_transaction:
+    # - handler: visit
+      # handler_before: bca_check_session
+      # menu: bca_account_statement_page
+      # visit_before:
+        # - bca_set_referer
+        # - bca_method_post
+      # visit_after: verify
+    # - handler: visit
+      # menu: bca_account_statement_page_view
+      # visit_after: verify
+  # logout:
+    # - handler: visit
+      # menu: bca_logout
+      # visit_before:
+        # - bca_set_referer
+        # - bca_method_post
+    # - handler: bca_clear_last_visit

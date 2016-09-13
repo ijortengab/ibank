@@ -1,6 +1,6 @@
 <?php
 
-namespace IjorTengab\IBank\BNI;
+namespace IjorTengab\IBank\Modules\BNI;
 
 use IjorTengab\IBank\IBank;
 use IjorTengab\Mission\AbstractWebCrawler;
