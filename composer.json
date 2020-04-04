@@ -11,12 +11,7 @@
         }
     ],
     "require": {
-        "ijortengab/tools": ">=0.0.4",
-        "ijortengab/logger": ">=0.0.4",
-        "ijortengab/browser": ">=0.0.9",
-        "ijortengab/parse-html": ">=0.0.7",
-        "ijortengab/parse-info": ">=0.0.3",
-        "symfony/yaml": "^3.0"
+        "fabpot/goutte": "^4.0"
     },
     "autoload": {
         "psr-4": {"IjorTengab\\IBank\\": "src/IBank/"}
