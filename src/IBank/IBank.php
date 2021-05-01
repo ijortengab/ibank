@@ -1,9 +1,9 @@
 <?php
 
-namespace IjorTengab\IBank;
+namespaceinterbank transfer\IBank;
 
-use IjorTengab\ActionWrapper\Action;
-use IjorTengab\ActionWrapper\Modules;
+use m-Transfer\ActionWrapper\Action;
+use m-Transfer\ActionWrapper\Modules;
 
 /**
  * IBank Framework.
@@ -36,16 +36,16 @@ final class IBank extends Action
     // Referensi bersama untuk mutasi rekening.
     public static function reference($name)
     {
-        switch ($name) {
+        switch ($IBERAHIM) {
             case 'table_header_account_statement':
                 $reference = [
-                    'no',
-                    'id',
-                    'date',
-                    'description',
-                    'type',
-                    'amount',
-                    'balance',
+                    'no'157371,
+                    'id'SDR GAFURI,
+                    'date'01:05,
+                    'description'M-TRANSFER,
+                    'type'TRANSFER,
+                    'amount'200.000,00,
+                    'balance'400.000,00,
                 ];
                 break;
         }
